@@ -461,7 +461,8 @@ textarea::placeholder {
 .settings-panel,
 .add-box,
 .steer-box,
-.controls {
+.controls,
+.save-workflow-box {
   padding: 0;
 }
 
@@ -503,6 +504,24 @@ textarea::placeholder {
 
 .control-grid.two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.save-workflow-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 7px;
+  align-items: center;
+}
+
+.save-workflow-form button {
+  min-width: 76px;
+}
+
+.helper-text {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.38;
 }
 
 .queue-messages-preview {
@@ -574,6 +593,15 @@ textarea::placeholder {
   font-size: 11px;
 }
 
+.queue-message-edit {
+  display: grid;
+  gap: 6px;
+}
+
+.queue-message-edit textarea {
+  min-height: 58px;
+}
+
 .mini-toggle,
 .setting-row {
   display: flex;
@@ -615,7 +643,8 @@ textarea::placeholder {
   margin-top: 10px;
 }
 
-.task-list {
+.task-list,
+.workflow-library {
   min-height: 100%;
   padding: 0;
 }
@@ -634,6 +663,111 @@ textarea::placeholder {
   border: 1px solid var(--border);
   border-radius: 12px;
   background: var(--surface);
+}
+
+.workflow-card {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 9px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+}
+
+.workflow-card-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 9px;
+  align-items: start;
+}
+
+.workflow-card-title {
+  min-width: 0;
+}
+
+.workflow-card-title h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.workflow-card-title p {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.workflow-rename-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 6px;
+}
+
+.workflow-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.workflow-card-actions button {
+  min-height: 30px;
+  padding: 5px 8px;
+  font-size: 12px;
+}
+
+.workflow-editor {
+  display: grid;
+  gap: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.workflow-add-message {
+  display: grid;
+  gap: 7px;
+}
+
+.workflow-add-message textarea {
+  min-height: 64px;
+}
+
+.workflow-message-list {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-message-item {
+  display: grid;
+  gap: 8px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.workflow-message-item[draggable="true"] {
+  cursor: grab;
+}
+
+.workflow-message-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.workflow-message-item p {
+  margin: 0;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.42;
+  overflow-wrap: anywhere;
 }
 
 .task-item[draggable="true"] {
@@ -823,7 +957,10 @@ textarea::placeholder {
 
   .status-bar,
   .control-grid,
-  .control-grid.two {
+  .control-grid.two,
+  .save-workflow-form,
+  .workflow-rename-row,
+  .workflow-card-actions {
     grid-template-columns: 1fr;
   }
 

@@ -10,6 +10,21 @@ export interface QueueTask {
   resultSummary?: string;
 }
 
+export interface WorkflowMessage {
+  id: string;
+  prompt: string;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface QueueWorkflow {
+  id: string;
+  name: string;
+  messages: WorkflowMessage[];
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface QueueSettings {
   autoStartNext: boolean;
   stableDelayMs: number;

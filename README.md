@@ -7,16 +7,16 @@ This is not an OpenAI API project. It does not use an API key, backend service, 
 ## Features
 
 - Shadow DOM sidebar on `chatgpt.com` and `chat.openai.com`
-- Run tab combining prompt input, Steer controls, queue execution controls, and a compact Queue Messages preview
-- Workflow tab for arranging and exporting a reusable multi-message prompt flow
+- Run tab combining prompt input, Steer controls, queue execution controls, Save as Workflow, and a compact Queue Messages preview
+- Workflow library for saving multiple named reusable multi-message prompt queues
 - Prompt states: pending, running, done, failed, skipped
 - Batch add prompts split by `---`, `###`, or a custom separator line
 - Automatic next-message sending after ChatGPT output appears stable
-- Pause, resume, retry, skip, reorder, move to top, clear, Import Workflow, and Export Workflow
+- Pause, resume, retry, skip, clear, named workflow import/export, and workflow message editing
 - Steer Next and Stop & Steer
 - Chinese / English UI toggle
 - Support tab with GitHub Star link and local WeChat Pay donation QR code
-- Persistent queue, settings, collapsed state, and panel width via `chrome.storage.local`
+- Persistent queue, named workflow library, settings, collapsed state, and panel width via `chrome.storage.local`
 - Dark, light, and system theme modes
 - Keyboard shortcuts:
   - `Alt + Q`: collapse or expand the sidebar
@@ -54,12 +54,12 @@ Open ChatGPT Web while logged in. The Queue Steer panel appears on the right sid
 
 Use the compact navigation bar near the top of the panel:
 
-- Run: add queue messages, insert steer prompts, start/pause/resume/stop the queue, import/export workflows, and watch the compact Queue Messages list update.
-- Workflow: edit, reorder, and export the arranged multi-message prompt flow.
+- Run: add queue messages, insert steer prompts, start/pause/resume/stop the queue, save the current queue as a named workflow, and watch the compact Queue Messages list update.
+- Workflow: manage saved named workflows, expand a workflow to edit its messages, load or append it to the current queue, import/export workflow JSON.
 - Settings: timing, language, theme, separators, and panel width.
 - Support: GitHub Star link and optional donation QR code.
 
-In Run, add prompts in the textarea and click Add to Queue. Put `---` or `###` on its own line to split multiple prompts into separate queue messages. New messages append to the bottom of the current queue, including while another message is running. Click Start to send the first pending message.
+In Run, add prompts in the textarea and click Add to Queue. Put `---` or `###` on its own line to split multiple prompts into separate queue messages. New messages append to the bottom of the current queue, including while another message is running. Click Save as Workflow to name the current queue, for example `Test`, and store it locally as a reusable workflow. Click Start to send the first pending message.
 
 The extension waits for ChatGPT generation to finish by observing DOM changes and the visible stop button. When output is stable for the configured delay, the task is marked done and the next pending task starts if auto-start is enabled.
 
@@ -72,9 +72,12 @@ Use Pause to finish the current response but prevent the next task from sending.
 - A message is marked running before its prompt is sent.
 - Completion marks the message done.
 - Timeout or send/composer detection errors mark the message failed and pause the queue.
-- The Workflow is the current multi-message queue exported as a reusable JSON file.
+- A Workflow is a saved named template made from multiple queue messages.
+- The Workflow library is stored locally in `chrome.storage.local` alongside the current queue and settings.
+- Save as Workflow stores the current queue as pending reusable messages and does not clear the Run queue.
+- Load Queue replaces the current queue with the workflow messages as pending tasks. Append to Queue adds them to the bottom.
 - Export Workflow writes `type`, `version`, `name`, `exportedAt`, `messages`, and related settings.
-- Import Workflow supports both new workflow JSON and older queue JSON, appends valid messages to the current queue, assigns fresh IDs, and restores every imported message as pending.
+- Import Workflow supports both new workflow JSON and older queue JSON, creates a new named workflow, assigns fresh IDs, and restores every imported message as pending.
 - Refreshing the page preserves the queue. Any previously running message is restored to pending and a warning is shown.
 
 ## Steer Behavior

@@ -6,17 +6,19 @@ import {
   DEFAULT_STATE,
   loadSettings,
   loadState,
+  loadWorkflows,
   saveSettings,
   saveState,
+  saveWorkflows,
   subscribeStorageChanges
 } from "../content/storage";
-import type { QueueSettings, QueueState, QueueTask, TaskStatus } from "../content/types";
+import type { QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "../content/types";
 import { clamp, createId } from "../utils/dom";
 import { getErrorMessage } from "../utils/logger";
 import { CollapseIcon, SettingsIcon } from "./Icons";
 import { SettingsPanel } from "./SettingsPanel";
 import { SteerBox } from "./SteerBox";
-import { TaskItem } from "./TaskItem";
+import { WorkflowCard } from "./WorkflowCard";
 
 type PanelSection = "run" | "workflow" | "settings" | "support";
 
@@ -32,6 +34,27 @@ function makeTask(prompt: string, status: TaskStatus = "pending"): QueueTask {
     id: createId(),
     prompt,
     status,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
+
+function makeWorkflowMessage(prompt: string): WorkflowMessage {
+  const timestamp = now();
+  return {
+    id: createId(),
+    prompt,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
+}
+
+function makeWorkflow(name: string, messages: WorkflowMessage[]): QueueWorkflow {
+  const timestamp = now();
+  return {
+    id: createId(),
+    name,
+    messages,
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -107,12 +130,12 @@ function getImportedItems(value: unknown): unknown[] {
   return [];
 }
 
-function normalizeImportedTasks(value: unknown): QueueTask[] {
+function normalizeImportedMessages(value: unknown): WorkflowMessage[] {
   return getImportedItems(value)
     .map((item) => {
       if (typeof item === "string") {
         const prompt = item.trim();
-        return prompt ? makeTask(prompt) : null;
+        return prompt ? makeWorkflowMessage(prompt) : null;
       }
       if (!isRecord(item)) {
         return null;
@@ -124,10 +147,41 @@ function normalizeImportedTasks(value: unknown): QueueTask[] {
         return null;
       }
 
-      // Imported workflows are reusable templates, so every message is restored as pending work.
-      return makeTask(prompt);
+      return makeWorkflowMessage(prompt);
     })
-    .filter((task): task is QueueTask => Boolean(task));
+    .filter((message): message is WorkflowMessage => Boolean(message));
+}
+
+function getImportedWorkflowName(value: unknown, fallbackName: string): string {
+  if (isRecord(value) && typeof value.name === "string" && value.name.trim()) {
+    return value.name.trim();
+  }
+
+  if (isRecord(value) && isRecord(value.workflow) && typeof value.workflow.name === "string" && value.workflow.name.trim()) {
+    return value.workflow.name.trim();
+  }
+
+  return fallbackName;
+}
+
+function getUniqueWorkflowName(name: string, workflows: QueueWorkflow[], excludeId?: string): string {
+  const baseName = name.trim() || "Untitled Workflow";
+  const existingNames = new Set(
+    workflows
+      .filter((workflow) => workflow.id !== excludeId)
+      .map((workflow) => workflow.name.trim().toLowerCase())
+  );
+  if (!existingNames.has(baseName.toLowerCase())) {
+    return baseName;
+  }
+
+  let index = 2;
+  let candidate = `${baseName} (${index})`;
+  while (existingNames.has(candidate.toLowerCase())) {
+    index += 1;
+    candidate = `${baseName} (${index})`;
+  }
+  return candidate;
 }
 
 function previewPrompt(prompt: string): string {
@@ -164,11 +218,16 @@ function getSections(texts: Texts): Array<{ id: PanelSection; label: string }> {
 export function QueuePanel(): JSX.Element {
   const [state, setState] = useState<QueueState>(DEFAULT_STATE);
   const [settings, setSettings] = useState<QueueSettings>(DEFAULT_SETTINGS);
+  const [workflows, setWorkflows] = useState<QueueWorkflow[]>([]);
   const [activeSection, setActiveSection] = useState<PanelSection>("run");
   const [promptDraft, setPromptDraft] = useState("");
+  const [saveWorkflowOpen, setSaveWorkflowOpen] = useState(false);
+  const [workflowNameDraft, setWorkflowNameDraft] = useState("");
+  const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null);
+  const [editingQueueTaskId, setEditingQueueTaskId] = useState<string | null>(null);
+  const [queueTaskDraft, setQueueTaskDraft] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
-  const [draggedTaskId, setDraggedTaskId] = useState<string | null>(null);
   const runnerRef = useRef(new QueueRunner());
   const busyRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -185,9 +244,14 @@ export function QueuePanel(): JSX.Element {
   }, []);
 
   const refresh = useCallback(async () => {
-    const [nextState, nextSettings] = await Promise.all([loadState(), loadSettings()]);
+    const [nextState, nextSettings, nextWorkflows] = await Promise.all([
+      loadState(),
+      loadSettings(),
+      loadWorkflows()
+    ]);
     setState(nextState);
     setSettings(nextSettings);
+    setWorkflows(nextWorkflows);
   }, []);
 
   useEffect(() => {
@@ -205,6 +269,11 @@ export function QueuePanel(): JSX.Element {
   const persistSettings = useCallback(async (nextSettings: QueueSettings) => {
     setSettings(nextSettings);
     await saveSettings(nextSettings);
+  }, []);
+
+  const persistWorkflows = useCallback(async (nextWorkflows: QueueWorkflow[]) => {
+    setWorkflows(nextWorkflows);
+    await saveWorkflows(nextWorkflows);
   }, []);
 
   const runBusy = useCallback(async (label: string, action: () => Promise<void>) => {
@@ -285,45 +354,19 @@ export function QueuePanel(): JSX.Element {
     });
   };
 
-  const handleMove = (id: string, direction: "up" | "down"): void => {
-    const index = state.tasks.findIndex((task) => task.id === id);
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (index < 0 || targetIndex < 0 || targetIndex >= state.tasks.length) {
-      return;
-    }
-    const next = [...state.tasks];
-    [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
-    void updateTasks(next);
+  const startQueueTaskEdit = (task: QueueTask): void => {
+    setEditingQueueTaskId(task.id);
+    setQueueTaskDraft(task.prompt);
   };
 
-  const handleMoveTop = (id: string): void => {
-    const index = state.tasks.findIndex((task) => task.id === id);
-    if (index <= 0) {
+  const saveQueueTaskEdit = (): void => {
+    const trimmed = queueTaskDraft.trim();
+    if (!editingQueueTaskId || !trimmed) {
       return;
     }
-    const next = [...state.tasks];
-    const [task] = next.splice(index, 1);
-    next.unshift(task);
-    void updateTasks(next);
-  };
-
-  const handleDropOn = (targetId: string): void => {
-    if (!draggedTaskId) {
-      return;
-    }
-    void updateTasks(reorderTasks(state.tasks, draggedTaskId, targetId));
-    setDraggedTaskId(null);
-  };
-
-  const handleSkip = (id: string): void => {
-    runnerRef.current.skipTask(id);
-    setState((current) => ({
-      ...current,
-      tasks: current.tasks.map((task) => (
-        task.id === id ? { ...task, status: "skipped", updatedAt: now(), error: undefined } : task
-      )),
-      currentTaskId: current.currentTaskId === id ? undefined : current.currentTaskId
-    }));
+    handleTaskEdit(editingQueueTaskId, trimmed);
+    setEditingQueueTaskId(null);
+    setQueueTaskDraft("");
   };
 
   const insertSteerTask = async (prompt: string, clearError = true): Promise<void> => {
@@ -353,22 +396,28 @@ export function QueuePanel(): JSX.Element {
     });
   };
 
-  const exportWorkflow = (): void => {
+  const queueMessagesFromTasks = (tasks: QueueTask[]): WorkflowMessage[] => (
+    tasks.map((task) => makeWorkflowMessage(task.prompt))
+  );
+
+  const tasksFromWorkflow = (workflow: QueueWorkflow): QueueTask[] => (
+    workflow.messages.map((message) => makeTask(message.prompt))
+  );
+
+  const exportWorkflowFile = (workflow: QueueWorkflow): void => {
     const exportedAt = new Date().toISOString();
-    const messages = state.tasks.map((task, index) => ({
-      id: task.id,
+    const messages = workflow.messages.map((message, index) => ({
+      id: message.id,
       order: index + 1,
-      prompt: task.prompt,
-      status: task.status,
-      createdAt: task.createdAt,
-      updatedAt: task.updatedAt,
-      error: task.error,
-      resultSummary: task.resultSummary
+      prompt: message.prompt,
+      createdAt: message.createdAt,
+      updatedAt: message.updatedAt
     }));
     const payload = {
       type: "chatgpt-queue-steer.workflow",
       version: 1,
-      name: `ChatGPT Queue Workflow ${exportedAt.slice(0, 10)}`,
+      id: workflow.id,
+      name: workflow.name,
       exportedAt,
       messages,
       settings: {
@@ -385,12 +434,32 @@ export function QueuePanel(): JSX.Element {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `chatgpt-workflow-${exportedAt.replace(/[:.]/g, "-")}.json`;
+    link.download = `${workflow.name.replace(/[\\/:*?"<>|]+/g, "-")}-${exportedAt.replace(/[:.]/g, "-")}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
 
-  const importQueueFile = async (file: File): Promise<void> => {
+  const saveCurrentQueueAsWorkflow = async (): Promise<void> => {
+    if (!state.tasks.length) {
+      throw new Error(texts.workflowSaveEmpty);
+    }
+
+    const trimmedName = workflowNameDraft.trim();
+    if (!trimmedName) {
+      throw new Error(texts.workflowNameRequired);
+    }
+
+    const latestWorkflows = await loadWorkflows();
+    const name = getUniqueWorkflowName(trimmedName, latestWorkflows);
+    const workflow = makeWorkflow(name, queueMessagesFromTasks(state.tasks));
+    await persistWorkflows([...latestWorkflows, workflow]);
+    setWorkflowNameDraft("");
+    setSaveWorkflowOpen(false);
+    setExpandedWorkflowId(workflow.id);
+    setLocalMessage(`${texts.workflowSaved}: ${name}`);
+  };
+
+  const importWorkflowFile = async (file: File): Promise<void> => {
     const text = await file.text();
     let parsed: unknown;
     try {
@@ -399,17 +468,79 @@ export function QueuePanel(): JSX.Element {
       throw new Error(texts.importInvalidJson);
     }
 
-    const importedTasks = normalizeImportedTasks(parsed);
-    if (!importedTasks.length) {
+    const messages = normalizeImportedMessages(parsed);
+    if (!messages.length) {
       throw new Error(texts.importNoValidTasks);
+    }
+
+    const latestWorkflows = await loadWorkflows();
+    const importedName = getImportedWorkflowName(parsed, `${texts.untitledWorkflow} ${new Date().toLocaleDateString()}`);
+    const name = getUniqueWorkflowName(importedName, latestWorkflows);
+    const workflow = makeWorkflow(name, messages);
+    await persistWorkflows([...latestWorkflows, workflow]);
+    setExpandedWorkflowId(workflow.id);
+    setLocalMessage(`${texts.workflowImported}: ${name}`);
+  };
+
+  const renameWorkflow = async (id: string, name: string): Promise<void> => {
+    const uniqueName = getUniqueWorkflowName(name, workflows, id);
+    await persistWorkflows(workflows.map((workflow) => (
+      workflow.id === id ? { ...workflow, name: uniqueName, updatedAt: now() } : workflow
+    )));
+  };
+
+  const updateWorkflowMessages = async (id: string, messages: WorkflowMessage[]): Promise<void> => {
+    await persistWorkflows(workflows.map((workflow) => (
+      workflow.id === id ? { ...workflow, messages, updatedAt: now() } : workflow
+    )));
+  };
+
+  const deleteWorkflow = async (id: string): Promise<void> => {
+    await persistWorkflows(workflows.filter((workflow) => workflow.id !== id));
+    if (expandedWorkflowId === id) {
+      setExpandedWorkflowId(null);
+    }
+  };
+
+  const loadWorkflowToQueue = async (id: string): Promise<void> => {
+    const workflow = workflows.find((item) => item.id === id);
+    if (!workflow) {
+      return;
+    }
+    const latest = await loadState();
+    if (latest.currentTaskId) {
+      throw new Error(texts.cannotReplaceRunningQueue);
+    }
+
+    await persistState({
+      ...latest,
+      tasks: tasksFromWorkflow(workflow),
+      isRunning: false,
+      isPaused: false,
+      currentTaskId: undefined,
+      lastError: undefined
+    });
+  };
+
+  const appendWorkflowToQueue = async (id: string): Promise<void> => {
+    const workflow = workflows.find((item) => item.id === id);
+    if (!workflow) {
+      return;
     }
 
     const latest = await loadState();
     await persistState({
       ...latest,
-      tasks: [...latest.tasks, ...importedTasks],
+      tasks: [...latest.tasks, ...tasksFromWorkflow(workflow)],
       lastError: undefined
     });
+  };
+
+  const exportWorkflowById = (id: string): void => {
+    const workflow = workflows.find((item) => item.id === id);
+    if (workflow) {
+      exportWorkflowFile(workflow);
+    }
   };
 
   const startResize = (event: React.MouseEvent<HTMLDivElement>): void => {
@@ -589,26 +720,39 @@ export function QueuePanel(): JSX.Element {
                 <button type="button" className="danger" onClick={() => void persistState({ ...DEFAULT_STATE })} disabled={!state.tasks.length || state.currentTaskId !== undefined}>
                   {texts.clearAll}
                 </button>
-                <button type="button" className="secondary" onClick={exportWorkflow} disabled={!state.tasks.length}>
-                  {texts.exportWorkflow}
-                </button>
-                <button type="button" className="secondary" onClick={() => fileInputRef.current?.click()}>
-                  {texts.importWorkflow}
+              </div>
+            </section>
+
+            <section className="save-workflow-box" aria-label={texts.saveAsWorkflow}>
+              <div className="section-title-row compact">
+                <h2>{texts.saveAsWorkflow}</h2>
+                <button
+                  type="button"
+                  className="secondary mini-action"
+                  onClick={() => setSaveWorkflowOpen((value) => !value)}
+                  disabled={!state.tasks.length}
+                >
+                  {saveWorkflowOpen ? texts.cancel : texts.saveAsWorkflow}
                 </button>
               </div>
-              <input
-                ref={fileInputRef}
-                className="hidden-input"
-                type="file"
-                accept="application/json,.json"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  event.currentTarget.value = "";
-                  if (file) {
-                    void runBusy("import", () => importQueueFile(file));
-                  }
-                }}
-              />
+              {saveWorkflowOpen ? (
+                <div className="save-workflow-form">
+                  <input
+                    value={workflowNameDraft}
+                    onChange={(event) => setWorkflowNameDraft(event.target.value)}
+                    placeholder={texts.workflowNamePlaceholder}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void runBusy("save-workflow", saveCurrentQueueAsWorkflow)}
+                    disabled={Boolean(busyAction) || !workflowNameDraft.trim() || !state.tasks.length}
+                  >
+                    {texts.save}
+                  </button>
+                </div>
+              ) : (
+                <p className="helper-text">{texts.saveWorkflowHint}</p>
+              )}
             </section>
 
             <section className="queue-messages-preview" aria-label={texts.queueMessages}>
@@ -634,10 +778,40 @@ export function QueuePanel(): JSX.Element {
                             {statusLabel(task.status, texts)}
                           </span>
                         </div>
-                        <p>{previewPrompt(task.prompt)}</p>
+                        {editingQueueTaskId === task.id ? (
+                          <div className="queue-message-edit">
+                            <textarea
+                              value={queueTaskDraft}
+                              onChange={(event) => setQueueTaskDraft(event.target.value)}
+                              rows={2}
+                            />
+                            <div className="task-actions">
+                              <button type="button" onClick={saveQueueTaskEdit} disabled={!queueTaskDraft.trim()}>
+                                {texts.save}
+                              </button>
+                              <button
+                                type="button"
+                                className="secondary"
+                                onClick={() => {
+                                  setEditingQueueTaskId(null);
+                                  setQueueTaskDraft("");
+                                }}
+                              >
+                                {texts.cancel}
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <p>{previewPrompt(task.prompt)}</p>
+                        )}
                       </div>
                       <div className="queue-message-actions">
-                        <button type="button" className="secondary" onClick={() => setActiveSection("workflow")}>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => startQueueTaskEdit(task)}
+                          disabled={task.status === "running"}
+                        >
                           {texts.edit}
                         </button>
                         <button
@@ -660,34 +834,29 @@ export function QueuePanel(): JSX.Element {
         ) : null}
 
         {activeSection === "workflow" ? (
-          <section className="task-list" aria-label={texts.workflowLabel}>
+          <section className="workflow-library" aria-label={texts.workflowLabel}>
             <div className="section-title-row compact sticky-title">
               <h2>{texts.workflowLabel}</h2>
               <div className="section-title-actions">
-                <button type="button" className="secondary mini-action" onClick={exportWorkflow} disabled={!state.tasks.length}>
-                  {texts.exportWorkflow}
-                </button>
                 <button type="button" className="secondary mini-action" onClick={() => fileInputRef.current?.click()}>
                   {texts.importWorkflow}
                 </button>
               </div>
             </div>
-            {state.tasks.length ? (
-              state.tasks.map((task, index) => (
-                <TaskItem
-                  key={task.id}
-                  task={task}
-                  index={index}
-                  total={state.tasks.length}
+            {workflows.length ? (
+              workflows.map((workflow) => (
+                <WorkflowCard
+                  key={workflow.id}
+                  workflow={workflow}
+                  expanded={expandedWorkflowId === workflow.id}
                   texts={texts}
-                  onEdit={handleTaskEdit}
-                  onDelete={handleTaskDelete}
-                  onMove={handleMove}
-                  onMoveTop={handleMoveTop}
-                  onSkip={handleSkip}
-                  onRetry={(id) => void runBusy("retry", () => runnerRef.current.retryTask(id))}
-                  onDragStart={setDraggedTaskId}
-                  onDropOn={handleDropOn}
+                  onToggle={(id) => setExpandedWorkflowId((current) => (current === id ? null : id))}
+                  onRename={(id, name) => void runBusy("rename-workflow", () => renameWorkflow(id, name))}
+                  onDelete={(id) => void runBusy("delete-workflow", () => deleteWorkflow(id))}
+                  onLoad={(id) => void runBusy("load-workflow", () => loadWorkflowToQueue(id))}
+                  onAppend={(id) => void runBusy("append-workflow", () => appendWorkflowToQueue(id))}
+                  onExport={exportWorkflowById}
+                  onUpdateMessages={(id, messages) => void runBusy("update-workflow", () => updateWorkflowMessages(id, messages))}
                 />
               ))
             ) : (
@@ -728,6 +897,20 @@ export function QueuePanel(): JSX.Element {
             </div>
           </section>
         ) : null}
+
+        <input
+          ref={fileInputRef}
+          className="hidden-input"
+          type="file"
+          accept="application/json,.json"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.currentTarget.value = "";
+            if (file) {
+              void runBusy("import", () => importWorkflowFile(file));
+            }
+          }}
+        />
       </main>
     </aside>
   );

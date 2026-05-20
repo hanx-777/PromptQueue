@@ -1,8 +1,9 @@
-import type { QueueSettings, QueueState, QueueTask, TaskStatus } from "./types";
+import type { QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "./types";
 import { getErrorMessage, logWarn } from "../utils/logger";
 
 const STATE_KEY = "chatgptQueueSteer.state";
 const SETTINGS_KEY = "chatgptQueueSteer.settings";
+const WORKFLOWS_KEY = "chatgptQueueSteer.workflows";
 
 const VALID_STATUSES: TaskStatus[] = ["pending", "running", "done", "failed", "skipped"];
 
@@ -24,9 +25,12 @@ export const DEFAULT_STATE: QueueState = {
   isPaused: false
 };
 
+export const DEFAULT_WORKFLOWS: QueueWorkflow[] = [];
+
 let didNormalizeReloadState = false;
 let memoryState: QueueState = DEFAULT_STATE;
 let memorySettings: QueueSettings = DEFAULT_SETTINGS;
+let memoryWorkflows: QueueWorkflow[] = DEFAULT_WORKFLOWS;
 
 function hasChromeStorage(): boolean {
   return typeof chrome !== "undefined" && Boolean(chrome.storage?.local);
@@ -36,7 +40,8 @@ async function storageGet(keys: string[]): Promise<Record<string, unknown>> {
   if (!hasChromeStorage()) {
     return {
       [STATE_KEY]: memoryState,
-      [SETTINGS_KEY]: memorySettings
+      [SETTINGS_KEY]: memorySettings,
+      [WORKFLOWS_KEY]: memoryWorkflows
     };
   }
 
@@ -46,7 +51,8 @@ async function storageGet(keys: string[]): Promise<Record<string, unknown>> {
     logWarn("chrome.storage.local.get failed; using in-memory fallback.", error);
     return {
       [STATE_KEY]: memoryState,
-      [SETTINGS_KEY]: memorySettings
+      [SETTINGS_KEY]: memorySettings,
+      [WORKFLOWS_KEY]: memoryWorkflows
     };
   }
 }
@@ -58,6 +64,9 @@ async function storageSet(items: Record<string, unknown>): Promise<void> {
     }
     if (SETTINGS_KEY in items) {
       memorySettings = items[SETTINGS_KEY] as QueueSettings;
+    }
+    if (WORKFLOWS_KEY in items) {
+      memoryWorkflows = items[WORKFLOWS_KEY] as QueueWorkflow[];
     }
     return;
   }
@@ -71,6 +80,9 @@ async function storageSet(items: Record<string, unknown>): Promise<void> {
     }
     if (SETTINGS_KEY in items) {
       memorySettings = items[SETTINGS_KEY] as QueueSettings;
+    }
+    if (WORKFLOWS_KEY in items) {
+      memoryWorkflows = items[WORKFLOWS_KEY] as QueueWorkflow[];
     }
   }
 }
@@ -110,6 +122,59 @@ function normalizeTask(value: unknown): QueueTask | null {
     error: typeof value.error === "string" ? value.error : undefined,
     resultSummary: typeof value.resultSummary === "string" ? value.resultSummary : undefined
   };
+}
+
+function normalizeWorkflowMessage(value: unknown): WorkflowMessage | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const prompt = typeof value.prompt === "string" ? value.prompt.trim() : "";
+  if (!prompt) {
+    return null;
+  }
+
+  const now = Date.now();
+  return {
+    id: typeof value.id === "string" && value.id ? value.id : `${now}-${Math.random().toString(36).slice(2)}`,
+    prompt,
+    createdAt: typeof value.createdAt === "number" ? value.createdAt : now,
+    updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : now
+  };
+}
+
+function normalizeWorkflow(value: unknown): QueueWorkflow | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const name = typeof value.name === "string" && value.name.trim()
+    ? value.name.trim()
+    : "Untitled Workflow";
+  const messages = Array.isArray(value.messages)
+    ? value.messages
+        .map(normalizeWorkflowMessage)
+        .filter((message): message is WorkflowMessage => Boolean(message))
+    : [];
+
+  const now = Date.now();
+  return {
+    id: typeof value.id === "string" && value.id ? value.id : `${now}-${Math.random().toString(36).slice(2)}`,
+    name,
+    messages,
+    createdAt: typeof value.createdAt === "number" ? value.createdAt : now,
+    updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : now
+  };
+}
+
+function normalizeWorkflows(value: unknown): QueueWorkflow[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map(normalizeWorkflow)
+    .filter((workflow): workflow is QueueWorkflow => Boolean(workflow));
 }
 
 function normalizeSettings(value: unknown): QueueSettings {
@@ -229,6 +294,17 @@ export async function saveSettings(settings: QueueSettings): Promise<void> {
   await storageSet({ [SETTINGS_KEY]: stripUndefined(safeSettings) });
 }
 
+export async function loadWorkflows(): Promise<QueueWorkflow[]> {
+  const raw = await storageGet([WORKFLOWS_KEY]);
+  return normalizeWorkflows(raw[WORKFLOWS_KEY]);
+}
+
+export async function saveWorkflows(workflows: QueueWorkflow[]): Promise<void> {
+  const safeWorkflows = normalizeWorkflows(workflows);
+  memoryWorkflows = safeWorkflows;
+  await storageSet({ [WORKFLOWS_KEY]: stripUndefined(safeWorkflows) });
+}
+
 export function subscribeStorageChanges(callback: () => void): () => void {
   if (!hasChromeStorage()) {
     return () => undefined;
@@ -238,7 +314,7 @@ export function subscribeStorageChanges(callback: () => void): () => void {
     if (areaName !== "local") {
       return;
     }
-    if (STATE_KEY in changes || SETTINGS_KEY in changes) {
+    if (STATE_KEY in changes || SETTINGS_KEY in changes || WORKFLOWS_KEY in changes) {
       try {
         callback();
       } catch (error) {
