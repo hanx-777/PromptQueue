@@ -2,7 +2,7 @@ import { isHTMLElement, isVisible, uniqueElements } from "../../utils/dom";
 import { delay, dispatchInputLikeEvents, waitFor } from "../../utils/events";
 import { resolveModelSelectionTarget } from "../modelSettings";
 import type { ProviderModelKey, ProviderModelPreference } from "../types";
-import type { ModelSelectionResult, ProviderAdapter, ProviderId } from "./types";
+import type { ModelSelectionResult, ProviderAdapter, ProviderGenerationSnapshot, ProviderId } from "./types";
 
 interface DomProviderConfig {
   id: ProviderId;
@@ -19,6 +19,11 @@ interface DomProviderConfig {
   modelOptionSelectors: string[];
   modelButtonWords: string[];
   modelOptionWords: string[];
+  assistantSelectors: string[];
+  generatingSelectors: string[];
+  generatingWords: string[];
+  pendingMediaSelectors: string[];
+  pendingMediaWords: string[];
   composerError: string;
   sendError: string;
 }
@@ -113,6 +118,23 @@ function scoreComposer(element: HTMLElement): number {
 
 function isEnabledButton(button: HTMLButtonElement): boolean {
   return isVisible(button) && !button.disabled && button.getAttribute("aria-disabled") !== "true";
+}
+
+function isComposerReadyElement(element: HTMLElement | null): boolean {
+  if (!element || !isVisible(element)) {
+    return false;
+  }
+
+  if (element instanceof HTMLTextAreaElement) {
+    return !element.disabled && !element.readOnly;
+  }
+
+  if (element.isContentEditable || element.getAttribute("contenteditable") === "true") {
+    const ariaDisabled = element.getAttribute("aria-disabled");
+    return ariaDisabled !== "true";
+  }
+
+  return false;
 }
 
 function scoreSendButton(button: HTMLButtonElement, composer: HTMLElement | null, config: DomProviderConfig): number {
@@ -313,6 +335,60 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     return main ?? document.body;
   }
 
+  function findLastAssistantContentRoot(): HTMLElement | null {
+    const selectorCandidates = config.assistantSelectors.flatMap((selector) => queryAll<HTMLElement>(selector));
+    const genericCandidates = queryAll<HTMLElement>(
+      "[data-message-author-role='assistant'], [data-testid*='assistant' i], article, [role='article']"
+    );
+    const candidates = uniqueElements([...selectorCandidates, ...genericCandidates])
+      .filter((element) => isVisible(element))
+      .filter((element) => normalizedText(element).length > 0 || element.querySelector("img, picture, video, canvas, svg"));
+
+    return candidates[candidates.length - 1] ?? null;
+  }
+
+  function countGeneratingIndicators(): number {
+    const selectorMatches = config.generatingSelectors.flatMap((selector) => queryAll<HTMLElement>(selector));
+    const textMatches = queryAll<HTMLElement>(
+      "[aria-label], [title], [data-testid], [data-test-id], [role='status'], [aria-live]"
+    ).filter((element) => includesAny(element, config.generatingWords));
+
+    return uniqueElements([...selectorMatches, ...textMatches])
+      .filter((element) => isVisible(element))
+      .length;
+  }
+
+  function hasPendingMediaGeneration(): boolean {
+    const selectorMatches = config.pendingMediaSelectors.flatMap((selector) => queryAll<HTMLElement>(selector));
+    const textMatches = queryAll<HTMLElement>(
+      "[aria-label], [title], [data-testid], [data-test-id], [role='status'], [aria-live]"
+    ).filter((element) => includesAny(element, config.pendingMediaWords));
+
+    return uniqueElements([...selectorMatches, ...textMatches])
+      .some((element) => isVisible(element));
+  }
+
+  function getGenerationSnapshot(): ProviderGenerationSnapshot {
+    const composer = findComposer();
+    const sendButton = findSendButton();
+    const stopButton = findStopButton();
+    const assistantRoot = findLastAssistantContentRoot();
+    const assistantText = assistantRoot?.innerText?.replace(/\s+/g, " ").trim() ?? "";
+    const mediaCount = assistantRoot?.querySelectorAll("img, picture, video, canvas, svg").length ?? 0;
+    const busyCount = assistantRoot?.querySelectorAll("[aria-busy='true'], progress, [role='progressbar']").length ?? 0;
+
+    return {
+      composerReady: isComposerReadyElement(composer),
+      sendReady: Boolean(sendButton && isEnabledButton(sendButton)),
+      stopButtonVisible: Boolean(stopButton),
+      generatingIndicators: countGeneratingIndicators() + busyCount,
+      pendingMedia: hasPendingMediaGeneration(),
+      assistantSignature: `${assistantText.length}:${mediaCount}:${assistantRoot?.textContent?.length ?? 0}`,
+      assistantTextLength: assistantText.length,
+      assistantMediaCount: mediaCount
+    };
+  }
+
   async function selectModel(preference: ProviderModelPreference): Promise<ModelSelectionResult> {
     if (config.id !== "chatgpt" && config.id !== "gemini" && config.id !== "claude") {
       return { selected: false };
@@ -363,6 +439,7 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     clickStop,
     isGenerating: () => Boolean(findStopButton()),
     findMainArea,
+    getGenerationSnapshot,
     selectModel
   };
 }

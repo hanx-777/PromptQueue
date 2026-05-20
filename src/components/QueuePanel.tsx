@@ -627,7 +627,30 @@ export function QueuePanel(): JSX.Element {
     document.addEventListener("mouseup", onUp);
   };
 
+  const displayMessageSource = localMessage
+    ? "local"
+    : state.lastError
+      ? "lastError"
+      : state.reloadWarning
+        ? "reloadWarning"
+        : null;
   const displayMessage = localMessage ?? state.lastError ?? state.reloadWarning;
+
+  const dismissMessage = (): void => {
+    if (displayMessageSource === "local") {
+      setLocalMessage(null);
+      return;
+    }
+
+    if (displayMessageSource === "lastError") {
+      void persistState({ ...state, lastError: undefined });
+      return;
+    }
+
+    if (displayMessageSource === "reloadWarning") {
+      void persistState({ ...state, reloadWarning: undefined });
+    }
+  };
 
   if (settings.collapsed) {
     return (
@@ -706,7 +729,20 @@ export function QueuePanel(): JSX.Element {
         <span>{texts.skipped}: {counters.skipped}</span>
       </section>
 
-      {displayMessage ? <div className="message-banner">{displayMessage}</div> : null}
+      {displayMessage ? (
+        <div className="message-banner">
+          <span>{displayMessage}</span>
+          <button
+            type="button"
+            className="message-dismiss"
+            onClick={dismissMessage}
+            aria-label={texts.dismissMessage}
+            title={texts.dismissMessage}
+          >
+            x
+          </button>
+        </div>
+      ) : null}
 
       <nav className="panel-nav" aria-label={texts.panelNav}>
         {sections.map((section) => (

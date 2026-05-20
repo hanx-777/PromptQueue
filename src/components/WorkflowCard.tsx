@@ -2,7 +2,7 @@ import { useEffect, useState, type DragEvent } from "react";
 import type { Texts } from "../content/i18n";
 import type { QueueWorkflow, WorkflowMessage } from "../content/types";
 import { createId } from "../utils/dom";
-import { CloseIcon, GripIcon, MinusIcon, PlusIcon } from "./Icons";
+import { CloseIcon, GripIcon } from "./Icons";
 
 interface WorkflowCardProps {
   workflow: QueueWorkflow;
@@ -190,16 +190,6 @@ export function WorkflowCard({
           title={texts.dragWorkflow}
         >
           <GripIcon />
-        </button>
-
-        <button
-          type="button"
-          className="icon-button workflow-toggle-button"
-          onClick={() => onToggle(workflow.id)}
-          aria-label={expanded ? texts.collapseWorkflow : texts.expandWorkflow}
-          title={expanded ? texts.collapseWorkflow : texts.expandWorkflow}
-        >
-          {expanded ? <MinusIcon /> : <PlusIcon />}
         </button>
 
         <div className="workflow-card-title">

@@ -7,6 +7,17 @@ export interface ModelSelectionResult {
   warning?: string;
 }
 
+export interface ProviderGenerationSnapshot {
+  composerReady: boolean;
+  sendReady: boolean;
+  stopButtonVisible: boolean;
+  generatingIndicators: number;
+  pendingMedia: boolean;
+  assistantSignature: string;
+  assistantTextLength: number;
+  assistantMediaCount: number;
+}
+
 export interface ProviderAdapter {
   id: ProviderId;
   label: string;
@@ -19,5 +30,6 @@ export interface ProviderAdapter {
   clickStop(): Promise<boolean>;
   isGenerating(): boolean;
   findMainArea(): HTMLElement;
+  getGenerationSnapshot(): ProviderGenerationSnapshot;
   selectModel(preference: ProviderModelPreference): Promise<ModelSelectionResult>;
 }

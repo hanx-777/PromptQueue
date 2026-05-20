@@ -48,6 +48,27 @@ export const geminiProvider = createDomProvider({
   ],
   modelButtonWords: ["model", "gemini", "pro", "flash", "\u6a21\u578b"],
   modelOptionWords: ["gemini", "pro", "flash", "advanced", "\u6a21\u578b"],
+  assistantSelectors: [
+    "message-content",
+    "model-response",
+    "[data-test-id*='response' i]",
+    "article"
+  ],
+  generatingSelectors: [
+    "button[aria-label*='stop' i]",
+    "button[aria-label*='cancel' i]",
+    "[aria-busy='true']",
+    "[role='progressbar']",
+    "mat-progress-spinner"
+  ],
+  generatingWords: ["stop", "cancel", "generating", "drafting", "loading", "\u505c\u6b62", "\u53d6\u6d88", "\u751f\u6210", "\u52a0\u8f7d"],
+  pendingMediaSelectors: [
+    "[aria-busy='true']",
+    "[role='progressbar']",
+    "mat-progress-spinner",
+    "progress"
+  ],
+  pendingMediaWords: ["generating", "creating", "loading", "\u751f\u6210", "\u521b\u5efa", "\u52a0\u8f7d"],
   composerError: "Gemini composer was not found. Open a Gemini chat page and make sure the message box is visible.",
   sendError: "Gemini send button was not found or is disabled after filling the composer."
 });

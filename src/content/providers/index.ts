@@ -18,4 +18,4 @@ export function getCurrentProviderLabel(): string {
   return getCurrentProvider().label;
 }
 
-export type { ProviderAdapter, ProviderId } from "./types";
+export type { ProviderAdapter, ProviderGenerationSnapshot, ProviderId } from "./types";
