@@ -7,12 +7,12 @@ This is not an OpenAI API project. It does not use an API key, backend service, 
 ## Features
 
 - Shadow DOM sidebar on `chatgpt.com` and `chat.openai.com`
-- Run tab combining prompt input, Steer controls, and queue execution controls
-- Workflow tab for arranging a reusable ordered prompt flow
+- Run tab combining prompt input, Steer controls, queue execution controls, and a compact Queue Messages preview
+- Workflow tab for arranging and exporting a reusable multi-message prompt flow
 - Prompt states: pending, running, done, failed, skipped
 - Batch add prompts split by `---`, `###`, or a custom separator line
 - Automatic next-message sending after ChatGPT output appears stable
-- Pause, resume, retry, skip, reorder, move to top, clear, import, and export
+- Pause, resume, retry, skip, reorder, move to top, clear, Import Workflow, and Export Workflow
 - Steer Next and Stop & Steer
 - Chinese / English UI toggle
 - Support tab with GitHub Star link and local WeChat Pay donation QR code
@@ -54,12 +54,12 @@ Open ChatGPT Web while logged in. The Queue Steer panel appears on the right sid
 
 Use the compact navigation bar near the top of the panel:
 
-- Run: add prompts, insert steer prompts, start/pause/resume/stop the queue, import/export.
-- Workflow: edit and reorder the arranged prompt flow.
+- Run: add queue messages, insert steer prompts, start/pause/resume/stop the queue, import/export workflows, and watch the compact Queue Messages list update.
+- Workflow: edit, reorder, and export the arranged multi-message prompt flow.
 - Settings: timing, language, theme, separators, and panel width.
 - Support: GitHub Star link and optional donation QR code.
 
-In Run, add prompts in the textarea and click Add to Queue. Put `---` or `###` on its own line to split multiple prompts into separate queue tasks. Click Start to send the first pending task.
+In Run, add prompts in the textarea and click Add to Queue. Put `---` or `###` on its own line to split multiple prompts into separate queue messages. New messages append to the bottom of the current queue, including while another message is running. Click Start to send the first pending message.
 
 The extension waits for ChatGPT generation to finish by observing DOM changes and the visible stop button. When output is stable for the configured delay, the task is marked done and the next pending task starts if auto-start is enabled.
 
@@ -67,12 +67,15 @@ Use Pause to finish the current response but prevent the next task from sending.
 
 ## Queue And Workflow Behavior
 
-- Only one task runs at a time.
-- A task is marked running before its prompt is sent.
-- Completion marks the task done.
-- Timeout or send/composer detection errors mark the task failed and pause the queue.
-- Refreshing the page preserves the workflow. Any previously running task is restored to pending and a warning is shown.
-- Imported queues append valid imported tasks to the current workflow and assign fresh IDs.
+- The Queue is the current run queue; each prompt is one message.
+- Only one message runs at a time.
+- A message is marked running before its prompt is sent.
+- Completion marks the message done.
+- Timeout or send/composer detection errors mark the message failed and pause the queue.
+- The Workflow is the current multi-message queue exported as a reusable JSON file.
+- Export Workflow writes `type`, `version`, `name`, `exportedAt`, `messages`, and related settings.
+- Import Workflow supports both new workflow JSON and older queue JSON, appends valid messages to the current queue, assigns fresh IDs, and restores every imported message as pending.
+- Refreshing the page preserves the queue. Any previously running message is restored to pending and a warning is shown.
 
 ## Steer Behavior
 

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getTexts, type Texts } from "../content/i18n";
+import { getTexts, statusLabel, type Texts } from "../content/i18n";
 import { QueueRunner } from "../content/queueRunner";
 import {
   DEFAULT_SETTINGS,
@@ -20,7 +20,6 @@ import { TaskItem } from "./TaskItem";
 
 type PanelSection = "run" | "workflow" | "settings" | "support";
 
-const VALID_IMPORT_STATUSES: TaskStatus[] = ["pending", "running", "done", "failed", "skipped"];
 const GITHUB_REPO_URL = "https://github.com/hanx-777/chatgpt-queue-steer-extension";
 
 function now(): number {
@@ -75,29 +74,65 @@ function countByStatus(tasks: QueueTask[]): Record<TaskStatus, number> {
   );
 }
 
-function normalizeImportedTasks(value: unknown): QueueTask[] {
-  const rawTasks = Array.isArray(value)
-    ? value
-    : typeof value === "object" && value !== null && Array.isArray((value as { tasks?: unknown }).tasks)
-      ? (value as { tasks: unknown[] }).tasks
-      : [];
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
-  return rawTasks
+function getImportedItems(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (!isRecord(value)) {
+    return [];
+  }
+
+  if (Array.isArray(value.messages)) {
+    return value.messages;
+  }
+
+  if (Array.isArray(value.tasks)) {
+    return value.tasks;
+  }
+
+  if (isRecord(value.workflow)) {
+    if (Array.isArray(value.workflow.messages)) {
+      return value.workflow.messages;
+    }
+    if (Array.isArray(value.workflow.tasks)) {
+      return value.workflow.tasks;
+    }
+  }
+
+  return [];
+}
+
+function normalizeImportedTasks(value: unknown): QueueTask[] {
+  return getImportedItems(value)
     .map((item) => {
-      if (typeof item !== "object" || item === null) {
+      if (typeof item === "string") {
+        const prompt = item.trim();
+        return prompt ? makeTask(prompt) : null;
+      }
+      if (!isRecord(item)) {
         return null;
       }
-      const record = item as Record<string, unknown>;
-      const prompt = typeof record.prompt === "string" ? record.prompt.trim() : "";
+
+      const rawPrompt = item.prompt ?? item.content ?? item.message;
+      const prompt = typeof rawPrompt === "string" ? rawPrompt.trim() : "";
       if (!prompt) {
         return null;
       }
-      const status = VALID_IMPORT_STATUSES.includes(record.status as TaskStatus)
-        ? (record.status as TaskStatus)
-        : "pending";
-      return makeTask(prompt, status === "running" ? "pending" : status);
+
+      // Imported workflows are reusable templates, so every message is restored as pending work.
+      return makeTask(prompt);
     })
     .filter((task): task is QueueTask => Boolean(task));
+}
+
+function previewPrompt(prompt: string): string {
+  const normalized = prompt.replace(/\s+/g, " ").trim();
+  return normalized.length > 72 ? `${normalized.slice(0, 72)}...` : normalized;
 }
 
 function reorderTasks(tasks: QueueTask[], draggedId: string, targetId: string): QueueTask[] {
@@ -318,10 +353,24 @@ export function QueuePanel(): JSX.Element {
     });
   };
 
-  const exportQueue = (): void => {
+  const exportWorkflow = (): void => {
+    const exportedAt = new Date().toISOString();
+    const messages = state.tasks.map((task, index) => ({
+      id: task.id,
+      order: index + 1,
+      prompt: task.prompt,
+      status: task.status,
+      createdAt: task.createdAt,
+      updatedAt: task.updatedAt,
+      error: task.error,
+      resultSummary: task.resultSummary
+    }));
     const payload = {
-      exportedAt: new Date().toISOString(),
-      tasks: state.tasks,
+      type: "chatgpt-queue-steer.workflow",
+      version: 1,
+      name: `ChatGPT Queue Workflow ${exportedAt.slice(0, 10)}`,
+      exportedAt,
+      messages,
       settings: {
         stableDelayMs: settings.stableDelayMs,
         maxWaitMs: settings.maxWaitMs,
@@ -336,7 +385,7 @@ export function QueuePanel(): JSX.Element {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `chatgpt-queue-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
+    link.download = `chatgpt-workflow-${exportedAt.replace(/[:.]/g, "-")}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -540,11 +589,11 @@ export function QueuePanel(): JSX.Element {
                 <button type="button" className="danger" onClick={() => void persistState({ ...DEFAULT_STATE })} disabled={!state.tasks.length || state.currentTaskId !== undefined}>
                   {texts.clearAll}
                 </button>
-                <button type="button" className="secondary" onClick={exportQueue} disabled={!state.tasks.length}>
-                  {texts.exportQueue}
+                <button type="button" className="secondary" onClick={exportWorkflow} disabled={!state.tasks.length}>
+                  {texts.exportWorkflow}
                 </button>
                 <button type="button" className="secondary" onClick={() => fileInputRef.current?.click()}>
-                  {texts.importQueue}
+                  {texts.importWorkflow}
                 </button>
               </div>
               <input
@@ -561,6 +610,52 @@ export function QueuePanel(): JSX.Element {
                 }}
               />
             </section>
+
+            <section className="queue-messages-preview" aria-label={texts.queueMessages}>
+              <div className="section-title-row compact">
+                <h2>{texts.queueMessages}</h2>
+                <button
+                  type="button"
+                  className="secondary mini-action"
+                  onClick={() => setActiveSection("workflow")}
+                  disabled={!state.tasks.length}
+                >
+                  {texts.manageWorkflow}
+                </button>
+              </div>
+              {state.tasks.length ? (
+                <ol className="queue-message-list">
+                  {state.tasks.map((task, index) => (
+                    <li key={task.id} className={`queue-message-row queue-message-${task.status}`}>
+                      <div className="queue-message-main">
+                        <div className="queue-message-meta">
+                          <span className="queue-message-index">#{index + 1}</span>
+                          <span className={`status-chip status-${task.status}`}>
+                            {statusLabel(task.status, texts)}
+                          </span>
+                        </div>
+                        <p>{previewPrompt(task.prompt)}</p>
+                      </div>
+                      <div className="queue-message-actions">
+                        <button type="button" className="secondary" onClick={() => setActiveSection("workflow")}>
+                          {texts.edit}
+                        </button>
+                        <button
+                          type="button"
+                          className="secondary"
+                          onClick={() => handleTaskDelete(task.id)}
+                          disabled={task.status === "running"}
+                        >
+                          {texts.delete}
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <div className="empty-state compact-empty">{texts.queueMessagesEmpty}</div>
+              )}
+            </section>
           </section>
         ) : null}
 
@@ -568,6 +663,14 @@ export function QueuePanel(): JSX.Element {
           <section className="task-list" aria-label={texts.workflowLabel}>
             <div className="section-title-row compact sticky-title">
               <h2>{texts.workflowLabel}</h2>
+              <div className="section-title-actions">
+                <button type="button" className="secondary mini-action" onClick={exportWorkflow} disabled={!state.tasks.length}>
+                  {texts.exportWorkflow}
+                </button>
+                <button type="button" className="secondary mini-action" onClick={() => fileInputRef.current?.click()}>
+                  {texts.importWorkflow}
+                </button>
+              </div>
             </div>
             {state.tasks.length ? (
               state.tasks.map((task, index) => (

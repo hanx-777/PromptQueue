@@ -470,6 +470,14 @@ textarea::placeholder {
   margin-bottom: 8px;
 }
 
+.section-title-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
 .section-title-row.compact {
   margin-bottom: 7px;
 }
@@ -495,6 +503,75 @@ textarea::placeholder {
 
 .control-grid.two {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.queue-messages-preview {
+  padding: 0;
+}
+
+.mini-action {
+  min-height: 26px;
+  padding: 4px 8px;
+  font-size: 11px;
+}
+
+.queue-message-list {
+  display: grid;
+  gap: 7px;
+  max-height: 230px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.queue-message-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+}
+
+.queue-message-main {
+  min-width: 0;
+}
+
+.queue-message-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.queue-message-index {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.queue-message-row p {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.queue-message-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 5px;
+}
+
+.queue-message-actions button {
+  min-height: 26px;
+  padding: 4px 8px;
+  font-size: 11px;
 }
 
 .mini-toggle,
@@ -657,6 +734,11 @@ textarea::placeholder {
   color: var(--muted);
   font-size: 13px;
   text-align: center;
+}
+
+.compact-empty {
+  min-height: 74px;
+  padding: 12px;
 }
 
 .donate-card {
