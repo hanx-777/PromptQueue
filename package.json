@@ -1,0 +1,30 @@
+{
+  "name": "chatgpt-queue-steer-extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Manifest V3 Chrome/Edge extension that adds queue and steer controls to ChatGPT Web.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hanx-777/chatgpt-queue-steer-extension.git"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build",
+    "dev": "vite build --watch",
+    "clean": "rimraf dist"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.287",
+    "@types/node": "^25.9.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^6.0.2",
+    "rimraf": "^6.0.1",
+    "typescript": "^5.6.3",
+    "vite": "^8.0.13"
+  }
+}
