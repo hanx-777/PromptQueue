@@ -2,7 +2,7 @@
   "name": "promptqueue-extension",
   "version": "0.1.0",
   "private": true,
-  "description": "A Manifest V3 Chrome/Edge extension that adds local prompt queue and steer controls to ChatGPT, Gemini, and Claude.",
+  "description": "Queue prompts, reuse workflows, and steer your next message across major AI chat pages.",
   "repository": {
     "type": "git",
     "url": "https://github.com/hanx-777/PromptQueue.git"

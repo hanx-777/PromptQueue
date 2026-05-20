@@ -1,0 +1,8 @@
+{
+  "extensionName": {
+    "message": "PromptQueue：AI 对话工作流队列"
+  },
+  "extensionDescription": {
+    "message": "在主流 AI 对话网页中排队发送提示词、复用工作流并控制下一步输入。"
+  }
+}

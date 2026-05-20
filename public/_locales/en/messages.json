@@ -1,0 +1,8 @@
+{
+  "extensionName": {
+    "message": "PromptQueue: Chat Workflow Queue"
+  },
+  "extensionDescription": {
+    "message": "Queue prompts, reuse workflows, and steer your next message across major AI chat pages."
+  }
+}

@@ -1,6 +1,12 @@
-# PromptQueue
+# PromptQueue: Chat Workflow Queue
 
-PromptQueue is a local Chrome/Edge Manifest V3 extension that adds Codex-like prompt queue and steer controls to ChatGPT, Gemini, and Claude web apps. It works only through visible page DOM interactions: filling the composer, clicking send, and watching the page for reply completion.
+PromptQueue：AI 对话工作流队列
+
+Queue prompts, reuse workflows, and steer your next message across major AI chat pages.
+
+在主流 AI 对话网页中排队发送提示词、复用工作流并控制下一步输入。
+
+PromptQueue is a local Chrome/Edge Manifest V3 extension for ChatGPT, Gemini, and Claude web apps. It works only through visible page DOM interactions: filling the composer, clicking send, and watching the page for reply completion.
 
 This is not an OpenAI API project. It does not use an API key, backend service, cookies, tokens, private ChatGPT endpoints, or internal network calls.
 
