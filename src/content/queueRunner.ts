@@ -1,5 +1,6 @@
 import { clickSend, clickStop, setComposerText } from "./chatgptDom";
-import { getCurrentProviderLabel } from "./providers";
+import { getProviderModelPreference } from "./modelSettings";
+import { getCurrentProvider, getCurrentProviderLabel } from "./providers";
 import { ReplyWatcher } from "./replyWatcher";
 import { loadSettings, loadState, saveState } from "./storage";
 import type { QueueState, QueueTask } from "./types";
@@ -160,6 +161,24 @@ export class QueueRunner {
       await saveState(runningState);
 
       try {
+        const provider = getCurrentProvider();
+        try {
+          const modelResult = await provider.selectModel(getProviderModelPreference(settings, provider.id));
+          if (modelResult.warning) {
+            const latest = await loadState();
+            await saveState({
+              ...latest,
+              lastError: modelResult.warning
+            });
+          }
+        } catch (modelError) {
+          const latest = await loadState();
+          await saveState({
+            ...latest,
+            lastError: `Model selection warning: ${getErrorMessage(modelError)}. Continuing with the current visible model.`
+          });
+        }
+
         await setComposerText(pendingTask.prompt);
         await clickSend();
 

@@ -679,6 +679,43 @@ textarea::placeholder {
   margin-top: 10px;
 }
 
+.settings-disclosure {
+  margin-top: 10px;
+}
+
+.advanced-settings {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.advanced-settings-title {
+  display: grid;
+  gap: 3px;
+}
+
+.advanced-settings-title strong {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.advanced-settings-title span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.provider-model-setting {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
 .task-list,
 .workflow-library {
   min-height: 100%;
@@ -713,7 +750,7 @@ textarea::placeholder {
 
 .workflow-card-header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   gap: 9px;
   align-items: center;
 }
@@ -738,10 +775,20 @@ textarea::placeholder {
 }
 
 .workflow-toggle-button,
+.workflow-card-drag-button,
 .workflow-delete-button {
   width: 30px;
   min-width: 30px;
   height: 30px;
+}
+
+.workflow-card-drag-button {
+  color: var(--muted);
+  cursor: grab;
+}
+
+.workflow-card-drag-button:active {
+  cursor: grabbing;
 }
 
 .workflow-delete-button {
@@ -1014,6 +1061,15 @@ button.status-toggle:disabled {
 
 .github-star-link:hover {
   background: var(--button-hover);
+}
+
+.kofi-link {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.kofi-link:hover {
+  background: var(--surface-soft);
 }
 
 .hidden-input {

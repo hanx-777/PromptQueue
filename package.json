@@ -5,7 +5,7 @@
   "description": "A Manifest V3 Chrome/Edge extension that adds local prompt queue and steer controls to ChatGPT, Gemini, and Claude.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/hanx-777/chatgpt-queue-steer-extension.git"
+    "url": "https://github.com/hanx-777/PromptQueue.git"
   },
   "type": "module",
   "scripts": {

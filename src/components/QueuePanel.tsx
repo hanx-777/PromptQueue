@@ -23,7 +23,8 @@ import { WorkflowCard } from "./WorkflowCard";
 
 type PanelSection = "run" | "workflow" | "settings" | "support";
 
-const GITHUB_REPO_URL = "https://github.com/hanx-777/chatgpt-queue-steer-extension";
+const GITHUB_REPO_URL = "https://github.com/hanx-777/PromptQueue";
+const KOFI_URL = "https://ko-fi.com/hanx1221";
 
 function now(): number {
   return Date.now();
@@ -199,6 +200,23 @@ function getSections(texts: Texts): Array<{ id: PanelSection; label: string }> {
   ];
 }
 
+function reorderWorkflows(workflows: QueueWorkflow[], draggedId: string, targetId: string): QueueWorkflow[] {
+  if (draggedId === targetId) {
+    return workflows;
+  }
+
+  const draggedIndex = workflows.findIndex((workflow) => workflow.id === draggedId);
+  const targetIndex = workflows.findIndex((workflow) => workflow.id === targetId);
+  if (draggedIndex < 0 || targetIndex < 0) {
+    return workflows;
+  }
+
+  const next = [...workflows];
+  const [dragged] = next.splice(draggedIndex, 1);
+  next.splice(targetIndex, 0, dragged);
+  return next;
+}
+
 export function QueuePanel(): JSX.Element {
   const [state, setState] = useState<QueueState>(DEFAULT_STATE);
   const [settings, setSettings] = useState<QueueSettings>(DEFAULT_SETTINGS);
@@ -208,6 +226,7 @@ export function QueuePanel(): JSX.Element {
   const [saveWorkflowOpen, setSaveWorkflowOpen] = useState(false);
   const [workflowNameDraft, setWorkflowNameDraft] = useState("");
   const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null);
+  const [draggedWorkflowId, setDraggedWorkflowId] = useState<string | null>(null);
   const [editingQueueTaskId, setEditingQueueTaskId] = useState<string | null>(null);
   const [queueTaskDraft, setQueueTaskDraft] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
@@ -216,6 +235,7 @@ export function QueuePanel(): JSX.Element {
   const busyRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const resizingRef = useRef(false);
+  const draggedWorkflowIdRef = useRef<string | null>(null);
 
   const texts = useMemo(() => getTexts(settings.language), [settings.language]);
   const sections = useMemo(() => getSections(texts), [texts]);
@@ -464,7 +484,8 @@ export function QueuePanel(): JSX.Element {
         appendContextMode: settings.appendContextMode,
         batchSeparator: settings.batchSeparator,
         theme: settings.theme,
-        language: settings.language
+        language: settings.language,
+        providerModels: settings.providerModels
       }
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -537,6 +558,17 @@ export function QueuePanel(): JSX.Element {
     if (expandedWorkflowId === id) {
       setExpandedWorkflowId(null);
     }
+  };
+
+  const dropWorkflow = async (targetId: string): Promise<void> => {
+    const draggedId = draggedWorkflowIdRef.current ?? draggedWorkflowId;
+    if (!draggedId) {
+      return;
+    }
+
+    await persistWorkflows(reorderWorkflows(workflows, draggedId, targetId));
+    draggedWorkflowIdRef.current = null;
+    setDraggedWorkflowId(null);
   };
 
   const runWorkflow = async (id: string): Promise<void> => {
@@ -889,6 +921,15 @@ export function QueuePanel(): JSX.Element {
                   onExport={exportWorkflowById}
                   runDisabled={Boolean(busyAction) || state.isRunning || workflow.messages.length === 0}
                   onUpdateMessages={(id, messages) => void runBusy("update-workflow", () => updateWorkflowMessages(id, messages))}
+                  onWorkflowDragStart={(id) => {
+                    draggedWorkflowIdRef.current = id;
+                    setDraggedWorkflowId(id);
+                  }}
+                  onWorkflowDrop={(id) => void runBusy("reorder-workflow", () => dropWorkflow(id))}
+                  onWorkflowDragEnd={() => {
+                    draggedWorkflowIdRef.current = null;
+                    setDraggedWorkflowId(null);
+                  }}
                 />
               ))
             ) : (
@@ -922,6 +963,14 @@ export function QueuePanel(): JSX.Element {
                 rel="noreferrer"
               >
                 {texts.githubStar}
+              </a>
+              <a
+                className="github-star-link kofi-link"
+                href={KOFI_URL}
+                target="_blank"
+                rel="noreferrer"
+              >
+                {texts.koFiSupport}
               </a>
               {donateImageUrl ? (
                 <img src={donateImageUrl} alt={texts.wechatPayAlt} loading="lazy" />

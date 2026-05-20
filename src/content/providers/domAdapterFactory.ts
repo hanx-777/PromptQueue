@@ -1,6 +1,8 @@
 import { isHTMLElement, isVisible, uniqueElements } from "../../utils/dom";
 import { delay, dispatchInputLikeEvents, waitFor } from "../../utils/events";
-import type { ProviderAdapter, ProviderId } from "./types";
+import { resolveModelSelectionTarget } from "../modelSettings";
+import type { ProviderModelKey, ProviderModelPreference } from "../types";
+import type { ModelSelectionResult, ProviderAdapter, ProviderId } from "./types";
 
 interface DomProviderConfig {
   id: ProviderId;
@@ -13,6 +15,10 @@ interface DomProviderConfig {
   stopPositiveWords: string[];
   notSendWords: string[];
   mainSelectors: string[];
+  modelButtonSelectors: string[];
+  modelOptionSelectors: string[];
+  modelButtonWords: string[];
+  modelOptionWords: string[];
   composerError: string;
   sendError: string;
 }
@@ -43,6 +49,10 @@ function textHaystack(element: Element): string {
 function includesAny(element: Element, words: string[]): boolean {
   const haystack = textHaystack(element);
   return words.some((word) => haystack.includes(word.toLowerCase()));
+}
+
+function normalizedText(element: Element): string {
+  return textHaystack(element).replace(/\s+/g, " ").trim();
 }
 
 function isUsableComposer(element: HTMLElement): boolean {
@@ -117,6 +127,22 @@ function scoreSendButton(button: HTMLButtonElement, composer: HTMLElement | null
 
   const rect = button.getBoundingClientRect();
   if (rect.top > window.innerHeight * 0.35) score += 8;
+
+  return score;
+}
+
+function scoreModelButton(button: HTMLButtonElement, config: DomProviderConfig): number {
+  let score = 0;
+  const haystack = textHaystack(button);
+
+  if (config.modelButtonWords.some((word) => haystack.includes(word.toLowerCase()))) score += 45;
+  if (haystack.includes("gpt") || haystack.includes("gemini") || haystack.includes("claude")) score += 24;
+  if (haystack.includes("model")) score += 22;
+  if (haystack.includes("pro") || haystack.includes("opus") || haystack.includes("sonnet")) score += 12;
+
+  const rect = button.getBoundingClientRect();
+  if (rect.top < window.innerHeight * 0.4) score += 8;
+  if (rect.width > 40 && rect.width < 280) score += 6;
 
   return score;
 }
@@ -201,6 +227,44 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     return candidates[0] ?? null;
   }
 
+  function findModelButton(): HTMLButtonElement | null {
+    const selectorButtons = config.modelButtonSelectors.flatMap((selector) => queryAll<HTMLButtonElement>(selector));
+    const allButtons = queryAll<HTMLButtonElement>("button");
+    const candidates = uniqueElements([...selectorButtons, ...allButtons])
+      .filter(isEnabledButton)
+      .filter((button) => scoreModelButton(button, config) >= 30);
+
+    return candidates.sort((a, b) => scoreModelButton(b, config) - scoreModelButton(a, config))[0] ?? null;
+  }
+
+  function findModelOptions(): HTMLElement[] {
+    const selectorOptions = config.modelOptionSelectors.flatMap((selector) => queryAll<HTMLElement>(selector));
+    const roleOptions = queryAll<HTMLElement>("[role='menuitem'], [role='option'], [role='radio'], [role='button']");
+
+    return uniqueElements([...selectorOptions, ...roleOptions])
+      .filter((element) => isVisible(element))
+      .filter((element) => {
+        const text = normalizedText(element);
+        if (text.length < 2 || text.length > 160) {
+          return false;
+        }
+        return includesAny(element, config.modelOptionWords);
+      });
+  }
+
+  function findMatchingModelOption(matchers: string[], allowFirstCredible: boolean): HTMLElement | null {
+    const options = findModelOptions();
+    for (const matcher of matchers) {
+      const normalizedMatcher = matcher.toLowerCase().trim();
+      const matched = options.find((option) => normalizedText(option).includes(normalizedMatcher));
+      if (matched) {
+        return matched;
+      }
+    }
+
+    return allowFirstCredible ? options[0] ?? null : null;
+  }
+
   async function setComposerText(text: string): Promise<void> {
     const composer = findComposer();
     if (!composer) {
@@ -249,6 +313,44 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     return main ?? document.body;
   }
 
+  async function selectModel(preference: ProviderModelPreference): Promise<ModelSelectionResult> {
+    if (config.id !== "chatgpt" && config.id !== "gemini" && config.id !== "claude") {
+      return { selected: false };
+    }
+
+    const target = resolveModelSelectionTarget(config.id as ProviderModelKey, preference);
+    if (!target) {
+      return { selected: false };
+    }
+
+    const button = findModelButton();
+    if (!button) {
+      return {
+        selected: false,
+        warning: `${config.label} model menu was not found. Continuing with the current visible model.`
+      };
+    }
+
+    button.click();
+    await delay(220);
+
+    const option = await waitFor(
+      () => findMatchingModelOption(target.matchers, target.allowFirstCredible),
+      { timeoutMs: 1600, intervalMs: 100 }
+    );
+
+    if (!option) {
+      return {
+        selected: false,
+        warning: `${config.label} model option "${target.label}" was not found. Continuing with the current visible model.`
+      };
+    }
+
+    option.click();
+    await delay(180);
+    return { selected: true };
+  }
+
   return {
     id: config.id,
     label: config.label,
@@ -260,6 +362,7 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     clickSend,
     clickStop,
     isGenerating: () => Boolean(findStopButton()),
-    findMainArea
+    findMainArea,
+    selectModel
   };
 }

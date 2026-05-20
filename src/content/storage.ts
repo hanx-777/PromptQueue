@@ -1,4 +1,5 @@
 import type { QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "./types";
+import { DEFAULT_PROVIDER_MODELS, normalizeProviderModels } from "./modelSettings";
 import { getErrorMessage, logWarn } from "../utils/logger";
 
 const STATE_KEY = "chatgptQueueSteer.state";
@@ -15,6 +16,7 @@ export const DEFAULT_SETTINGS: QueueSettings = {
   batchSeparator: "---",
   theme: "system",
   language: "zh",
+  providerModels: DEFAULT_PROVIDER_MODELS,
   collapsed: false,
   panelWidth: 380
 };
@@ -199,6 +201,7 @@ function normalizeSettings(value: unknown): QueueSettings {
       : DEFAULT_SETTINGS.batchSeparator,
     theme,
     language,
+    providerModels: normalizeProviderModels(value.providerModels),
     collapsed: typeof value.collapsed === "boolean" ? value.collapsed : DEFAULT_SETTINGS.collapsed,
     panelWidth: normalizeNumber(value.panelWidth, DEFAULT_SETTINGS.panelWidth, 300, 720)
   };

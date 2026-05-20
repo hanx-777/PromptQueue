@@ -1,5 +1,17 @@
 export type TaskStatus = "pending" | "running" | "done" | "failed" | "skipped";
 
+export type ProviderModelKey = "chatgpt" | "gemini" | "claude";
+
+export type ModelPreferenceMode = "auto-highest" | "preset" | "custom";
+
+export interface ProviderModelPreference {
+  mode: ModelPreferenceMode;
+  modelId?: string;
+  customLabel?: string;
+}
+
+export type ProviderModelSettings = Record<ProviderModelKey, ProviderModelPreference>;
+
 export interface QueueTask {
   id: string;
   prompt: string;
@@ -33,6 +45,7 @@ export interface QueueSettings {
   batchSeparator: string;
   theme: "light" | "dark" | "system";
   language: "zh" | "en";
+  providerModels: ProviderModelSettings;
   collapsed: boolean;
   panelWidth: number;
 }

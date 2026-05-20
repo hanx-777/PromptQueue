@@ -1,4 +1,11 @@
+import type { ProviderModelPreference } from "../types";
+
 export type ProviderId = "chatgpt" | "gemini" | "claude" | "unknown";
+
+export interface ModelSelectionResult {
+  selected: boolean;
+  warning?: string;
+}
 
 export interface ProviderAdapter {
   id: ProviderId;
@@ -12,4 +19,5 @@ export interface ProviderAdapter {
   clickStop(): Promise<boolean>;
   isGenerating(): boolean;
   findMainArea(): HTMLElement;
+  selectModel(preference: ProviderModelPreference): Promise<ModelSelectionResult>;
 }

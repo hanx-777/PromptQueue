@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type DragEvent } from "react";
 import type { Texts } from "../content/i18n";
 import type { QueueWorkflow, WorkflowMessage } from "../content/types";
 import { createId } from "../utils/dom";
@@ -15,6 +15,9 @@ interface WorkflowCardProps {
   onExport: (id: string) => void;
   runDisabled: boolean;
   onUpdateMessages: (id: string, messages: WorkflowMessage[]) => void;
+  onWorkflowDragStart: (id: string) => void;
+  onWorkflowDrop: (id: string) => void;
+  onWorkflowDragEnd: () => void;
 }
 
 function now(): number {
@@ -65,7 +68,10 @@ export function WorkflowCard({
   onRun,
   onExport,
   runDisabled,
-  onUpdateMessages
+  onUpdateMessages,
+  onWorkflowDragStart,
+  onWorkflowDrop,
+  onWorkflowDragEnd
 }: WorkflowCardProps): JSX.Element {
   const [nameDraft, setNameDraft] = useState(workflow.name);
   const [newMessageDraft, setNewMessageDraft] = useState("");
@@ -150,7 +156,9 @@ export function WorkflowCard({
     updateMessages(workflow.messages.filter((message) => message.id !== id));
   };
 
-  const dropOnMessage = (targetId: string): void => {
+  const dropOnMessage = (event: DragEvent<HTMLLIElement>, targetId: string): void => {
+    event.preventDefault();
+    event.stopPropagation();
     if (!draggedMessageId) {
       return;
     }
@@ -159,8 +167,31 @@ export function WorkflowCard({
   };
 
   return (
-    <article className="workflow-card">
+    <article
+      className="workflow-card"
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={(event) => {
+        event.preventDefault();
+        onWorkflowDrop(workflow.id);
+      }}
+    >
       <div className="workflow-card-header">
+        <button
+          type="button"
+          className="icon-button workflow-card-drag-button"
+          draggable
+          onDragStart={(event) => {
+            event.stopPropagation();
+            event.dataTransfer.effectAllowed = "move";
+            onWorkflowDragStart(workflow.id);
+          }}
+          onDragEnd={onWorkflowDragEnd}
+          aria-label={texts.dragWorkflow}
+          title={texts.dragWorkflow}
+        >
+          <GripIcon />
+        </button>
+
         <button
           type="button"
           className="icon-button workflow-toggle-button"
@@ -237,9 +268,16 @@ export function WorkflowCard({
                   key={message.id}
                   className="workflow-message-item"
                   draggable
-                  onDragStart={() => setDraggedMessageId(message.id)}
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={() => dropOnMessage(message.id)}
+                  onDragStart={(event) => {
+                    event.stopPropagation();
+                    setDraggedMessageId(message.id);
+                  }}
+                  onDragEnd={() => setDraggedMessageId(null)}
+                  onDragOver={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                  }}
+                  onDrop={(event) => dropOnMessage(event, message.id)}
                 >
                   <div className="workflow-message-head">
                     <button type="button" className="drag-handle icon-button" title={texts.dragToReorder}>

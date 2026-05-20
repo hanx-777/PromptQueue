@@ -33,6 +33,21 @@ export const geminiProvider = createDomProvider({
   stopPositiveWords: ["stop", "cancel", "\u505c\u6b62", "\u53d6\u6d88"],
   notSendWords: ["attach", "upload", "image", "mic", "microphone", "voice", "tool", "stop", "cancel", "\u505c\u6b62", "\u53d6\u6d88"],
   mainSelectors: ["main", "[role='main']", "bard-sidenav-content", "chat-window"],
+  modelButtonSelectors: [
+    "button[aria-label*='model' i]",
+    "button[aria-label*='Gemini' i]",
+    "button[data-testid*='model' i]",
+    "mat-select",
+    "[role='button'][aria-label*='model' i]"
+  ],
+  modelOptionSelectors: [
+    "[role='option']",
+    "[role='menuitem']",
+    "mat-option",
+    "button"
+  ],
+  modelButtonWords: ["model", "gemini", "pro", "flash", "\u6a21\u578b"],
+  modelOptionWords: ["gemini", "pro", "flash", "advanced", "\u6a21\u578b"],
   composerError: "Gemini composer was not found. Open a Gemini chat page and make sure the message box is visible.",
   sendError: "Gemini send button was not found or is disabled after filling the composer."
 });

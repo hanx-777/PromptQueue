@@ -17,7 +17,7 @@ This is not an OpenAI API project. It does not use an API key, backend service, 
 - Combined start/pause control, clear, named workflow import/export, and workflow message editing
 - Steer Next and Stop & Steer
 - Chinese / English UI toggle
-- Support tab with GitHub Star link and local WeChat Pay donation QR code
+- Support tab with GitHub Star, Ko-fi, and local WeChat Pay donation QR code
 - Persistent queue, named workflow library, settings, collapsed state, and panel width via `chrome.storage.local`
 - Dark, light, and system theme modes
 - Keyboard shortcuts:
@@ -59,7 +59,7 @@ Use the compact navigation bar near the top of the panel:
 - Run: add queue messages, insert steer prompts, start/pause the queue with one compact control, clear the queue, save the current queue as a named workflow, and watch Queue Messages update.
 - Workflow: manage saved named workflows, run a workflow, expand it to edit its name/messages, delete from the card corner, and import/export workflow JSON.
 - Settings: timing, language, theme, separators, and panel width.
-- Support: GitHub Star link and optional donation QR code.
+- Support: GitHub Star, Ko-fi, and optional donation QR code.
 
 In Run, add prompts in the textarea and click Add to Queue. Put `---` or `###` on its own line to split multiple prompts into separate queue messages. New messages append to the bottom of the current queue, including while another message is running. Click Save as Workflow to name the current queue, for example `Test`, and store it locally as a reusable workflow. Click Start to send the first pending message; click the same Start control while running to pause after the current response.
 
@@ -83,6 +83,11 @@ Pausing does not stop the current provider response; it prevents the next queue 
 - Refreshing the page preserves the queue. Any previously running message is restored to pending and a warning is shown.
 - Queue and workflow data are shared across ChatGPT, Gemini, and Claude.
 - In Queue Messages, clicking a status chip changes pending to done, done to pending, and failed/skipped back to pending. Running tasks cannot be toggled.
+- Saved workflows can be reordered by dragging their card handle in the Workflow tab.
+
+## Model Defaults
+
+Advanced settings can store a default model preference for ChatGPT, Gemini, and Claude. The default is Auto highest available. Before sending each queue message, PromptQueue tries to switch through the provider's visible model menu. If the model menu or requested option cannot be found, the queue continues with the current visible model and shows a warning.
 
 ## Steer Behavior
 
@@ -94,6 +99,7 @@ Steer is implemented as a next-message insertion mechanism. It cannot alter a mo
 
 - ChatGPT, Gemini, or Claude DOM changes can break selectors. The extension uses multiple selector and heuristic fallbacks, but these pages are not public automation APIs.
 - The extension cannot control a provider's internal queue or model state.
+- Model switching is best-effort because model menus, model names, and account availability differ by provider, subscription, region, and UI version.
 - Stop & Steer depends on the provider exposing a visible stop button.
 - Reply completion is inferred from DOM stability and may need timing adjustment for very long or dynamic answers.
 - The donation QR code is a static local image bundled into `dist/assets/donate-wechat.jpg`.
@@ -109,7 +115,7 @@ Steer is implemented as a next-message insertion mechanism. It cannot alter a mo
 
 ## Development Notes
 
-- Repository: `https://github.com/hanx-777/chatgpt-queue-steer-extension`
+- Repository: `https://github.com/hanx-777/PromptQueue`
 - Source entry: `src/content/index.tsx`
 - Content script output: `dist/assets/content.js`
 - Manifest source: `manifest.json`

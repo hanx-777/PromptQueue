@@ -29,6 +29,19 @@ export const claudeProvider = createDomProvider({
   stopPositiveWords: ["stop", "cancel", "\u505c\u6b62", "\u53d6\u6d88"],
   notSendWords: ["attach", "upload", "file", "image", "mic", "microphone", "voice", "stop", "cancel", "\u505c\u6b62", "\u53d6\u6d88"],
   mainSelectors: ["main", "[role='main']", "[data-testid*='chat' i]"],
+  modelButtonSelectors: [
+    "button[aria-label*='model' i]",
+    "button[aria-label*='Claude' i]",
+    "button[data-testid*='model' i]",
+    "button[data-testid*='selector' i]"
+  ],
+  modelOptionSelectors: [
+    "[role='menuitem']",
+    "[role='option']",
+    "button"
+  ],
+  modelButtonWords: ["model", "claude", "opus", "sonnet", "haiku", "\u6a21\u578b"],
+  modelOptionWords: ["claude", "opus", "sonnet", "haiku", "\u6a21\u578b"],
   composerError: "Claude composer was not found. Open a Claude chat page and make sure the message box is visible.",
   sendError: "Claude send button was not found or is disabled after filling the composer."
 });

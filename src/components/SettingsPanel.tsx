@@ -1,5 +1,7 @@
+import { useState } from "react";
 import type { Texts } from "../content/i18n";
-import type { QueueSettings } from "../content/types";
+import { DEFAULT_PROVIDER_MODELS, PROVIDER_LABELS, PROVIDER_MODEL_OPTIONS } from "../content/modelSettings";
+import type { ProviderModelKey, ProviderModelPreference, QueueSettings } from "../content/types";
 import { CloseIcon } from "./Icons";
 
 interface SettingsPanelProps {
@@ -10,8 +12,47 @@ interface SettingsPanelProps {
 }
 
 export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPanelProps): JSX.Element {
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const providerModels = settings.providerModels ?? DEFAULT_PROVIDER_MODELS;
+  const providerIds: ProviderModelKey[] = ["chatgpt", "gemini", "claude"];
+
   const update = <K extends keyof QueueSettings>(key: K, value: QueueSettings[K]): void => {
     onChange({ ...settings, [key]: value });
+  };
+
+  const updateProviderModel = (providerId: ProviderModelKey, preference: ProviderModelPreference): void => {
+    update("providerModels", {
+      ...providerModels,
+      [providerId]: preference
+    });
+  };
+
+  const selectProviderModel = (providerId: ProviderModelKey, value: string): void => {
+    if (value === "auto-highest") {
+      updateProviderModel(providerId, { mode: "auto-highest" });
+      return;
+    }
+
+    if (value === "custom") {
+      const previous = providerModels[providerId];
+      updateProviderModel(providerId, {
+        mode: "custom",
+        customLabel: previous.mode === "custom" ? previous.customLabel : ""
+      });
+      return;
+    }
+
+    updateProviderModel(providerId, {
+      mode: "preset",
+      modelId: value.replace(/^preset:/, "")
+    });
+  };
+
+  const providerSelectValue = (preference: ProviderModelPreference): string => {
+    if (preference.mode === "preset" && preference.modelId) {
+      return `preset:${preference.modelId}`;
+    }
+    return preference.mode;
   };
 
   return (
@@ -96,6 +137,59 @@ export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPa
           <option value="en">{texts.english}</option>
         </select>
       </label>
+
+      <button
+        type="button"
+        className="secondary settings-disclosure"
+        onClick={() => setAdvancedOpen((value) => !value)}
+      >
+        {advancedOpen ? texts.hideAdvancedSettings : texts.advancedSettings}
+      </button>
+
+      {advancedOpen ? (
+        <div className="advanced-settings">
+          <div className="advanced-settings-title">
+            <strong>{texts.modelDefaults}</strong>
+            <span>{texts.modelSelectionHint}</span>
+          </div>
+          {providerIds.map((providerId) => {
+            const preference = providerModels[providerId];
+            return (
+              <div className="provider-model-setting" key={providerId}>
+                <label className="field">
+                  <span>{PROVIDER_LABELS[providerId]}</span>
+                  <select
+                    value={providerSelectValue(preference)}
+                    onChange={(event) => selectProviderModel(providerId, event.target.value)}
+                  >
+                    <option value="auto-highest">{texts.autoHighestModel}</option>
+                    {PROVIDER_MODEL_OPTIONS[providerId].map((option) => (
+                      <option key={option.id} value={`preset:${option.id}`}>
+                        {option.label}
+                      </option>
+                    ))}
+                    <option value="custom">{texts.customModelLabel}</option>
+                  </select>
+                </label>
+                {preference.mode === "custom" ? (
+                  <label className="field">
+                    <span>{texts.customModelLabel}</span>
+                    <input
+                      type="text"
+                      value={preference.customLabel ?? ""}
+                      onChange={(event) => updateProviderModel(providerId, {
+                        mode: "custom",
+                        customLabel: event.target.value
+                      })}
+                      placeholder={texts.customModelPlaceholder}
+                    />
+                  </label>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
 
       <button
         type="button"

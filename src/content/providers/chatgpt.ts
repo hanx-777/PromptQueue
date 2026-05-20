@@ -34,6 +34,20 @@ export const chatgptProvider = createDomProvider({
   stopPositiveWords: ["stop", "\u505c\u6b62"],
   notSendWords: ["attach", "upload", "file", "voice", "microphone", "mic", "dictate", "tool", "search", "stop", "\u505c\u6b62"],
   mainSelectors: ["main", "[role='main']"],
+  modelButtonSelectors: [
+    "button[data-testid*='model' i]",
+    "button[aria-label*='model' i]",
+    "button[aria-label*='GPT' i]",
+    "[data-testid*='model' i] button"
+  ],
+  modelOptionSelectors: [
+    "[role='menuitem']",
+    "[role='option']",
+    "[data-testid*='model' i]",
+    "button"
+  ],
+  modelButtonWords: ["model", "gpt", "chatgpt", "\u6a21\u578b"],
+  modelOptionWords: ["gpt", "o3", "o4", "model", "\u6a21\u578b"],
   composerError: "ChatGPT composer was not found. Open a ChatGPT chat page and make sure the message box is visible.",
   sendError: "ChatGPT send button was not found or is disabled after filling the composer."
 });
