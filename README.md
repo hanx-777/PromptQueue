@@ -1,17 +1,19 @@
 # ChatGPT Queue Steer Extension
 
-A local Chrome/Edge Manifest V3 extension that adds Codex-like Queue and Steer controls to ChatGPT Web. It works only through visible page DOM interactions: filling the composer, clicking send, and watching the page for reply completion.
+A local Chrome/Edge Manifest V3 extension that adds Codex-like Queue and Steer controls to ChatGPT, Gemini, and Claude web apps. It works only through visible page DOM interactions: filling the composer, clicking send, and watching the page for reply completion.
 
 This is not an OpenAI API project. It does not use an API key, backend service, cookies, tokens, private ChatGPT endpoints, or internal network calls.
 
 ## Features
 
-- Shadow DOM sidebar on `chatgpt.com` and `chat.openai.com`
+- Shadow DOM sidebar on `chatgpt.com`, `chat.openai.com`, `gemini.google.com`, and `claude.ai`
+- Provider adapters for ChatGPT, Gemini, and Claude
 - Run tab combining prompt input, Steer controls, queue execution controls, Save as Workflow, and a compact Queue Messages preview
 - Workflow library for saving multiple named reusable multi-message prompt queues
 - Prompt states: pending, running, done, failed, skipped
 - Batch add prompts split by `---`, `###`, or a custom separator line
-- Automatic next-message sending after ChatGPT output appears stable
+- Automatic next-message sending after the current provider output appears stable
+- Clickable queue status chips for toggling pending/done and resetting failed/skipped to pending
 - Combined start/pause control, clear, named workflow import/export, and workflow message editing
 - Steer Next and Stop & Steer
 - Chinese / English UI toggle
@@ -46,11 +48,11 @@ Then load the extension:
 2. Enable Developer mode.
 3. Choose Load unpacked.
 4. Select the generated `dist` directory.
-5. Open or refresh `https://chatgpt.com/` or `https://chat.openai.com/`.
+5. Open or refresh `https://chatgpt.com/`, `https://chat.openai.com/`, `https://gemini.google.com/`, or `https://claude.ai/`.
 
 ## Usage
 
-Open ChatGPT Web while logged in. The Queue Steer panel appears on the right side.
+Open ChatGPT, Gemini, or Claude Web while logged in. The Queue Steer panel appears on the right side and shows the active provider in the header.
 
 Use the compact navigation bar near the top of the panel:
 
@@ -61,9 +63,9 @@ Use the compact navigation bar near the top of the panel:
 
 In Run, add prompts in the textarea and click Add to Queue. Put `---` or `###` on its own line to split multiple prompts into separate queue messages. New messages append to the bottom of the current queue, including while another message is running. Click Save as Workflow to name the current queue, for example `Test`, and store it locally as a reusable workflow. Click Start to send the first pending message; click the same Start control while running to pause after the current response.
 
-The extension waits for ChatGPT generation to finish by observing DOM changes and the visible stop button. When output is stable for the configured delay, the task is marked done and the next pending task starts if auto-start is enabled.
+The extension waits for generation to finish by observing DOM changes and the visible stop button. When output is stable for the configured delay, the task is marked done and the next pending task starts if auto-start is enabled.
 
-Pausing does not stop the current ChatGPT response; it prevents the next queue message from being sent. Stop & Steer still attempts to click ChatGPT's visible stop button before inserting a steer message.
+Pausing does not stop the current provider response; it prevents the next queue message from being sent. Stop & Steer still attempts to click the provider's visible stop button before inserting a steer message.
 
 ## Queue And Workflow Behavior
 
@@ -79,28 +81,30 @@ Pausing does not stop the current ChatGPT response; it prevents the next queue m
 - Export Workflow writes `type`, `version`, `name`, `exportedAt`, `messages`, and related settings.
 - Import Workflow supports both new workflow JSON and older queue JSON, creates a new named workflow, assigns fresh IDs, and restores every imported message as pending.
 - Refreshing the page preserves the queue. Any previously running message is restored to pending and a warning is shown.
+- Queue and workflow data are shared across ChatGPT, Gemini, and Claude.
+- In Queue Messages, clicking a status chip changes pending to done, done to pending, and failed/skipped back to pending. Running tasks cannot be toggled.
 
 ## Steer Behavior
 
-Steer Next inserts a temporary prompt immediately after the current running task, before other pending work. Stop & Steer first attempts to click the visible ChatGPT stop button, then inserts the steer task. If no stop button is found, the panel shows a warning and keeps the queue intact.
+Steer Next inserts a temporary prompt immediately after the current running task, before other pending work. Stop & Steer first attempts to click the visible stop button, then inserts the steer task. If no stop button is found, the panel shows a warning and keeps the queue intact.
 
-Steer is implemented as a next-message insertion mechanism. It cannot alter a model response already generated inside ChatGPT.
+Steer is implemented as a next-message insertion mechanism. It cannot alter a model response already generated inside the provider.
 
 ## Known Limitations
 
-- ChatGPT Web DOM changes can break selectors. The extension uses multiple selector and heuristic fallbacks, but the page is not a public automation API.
-- The extension cannot control ChatGPT's internal queue or model state.
-- Stop & Steer depends on ChatGPT exposing a visible stop button.
+- ChatGPT, Gemini, or Claude DOM changes can break selectors. The extension uses multiple selector and heuristic fallbacks, but these pages are not public automation APIs.
+- The extension cannot control a provider's internal queue or model state.
+- Stop & Steer depends on the provider exposing a visible stop button.
 - Reply completion is inferred from DOM stability and may need timing adjustment for very long or dynamic answers.
 - The donation QR code is a static local image bundled into `dist/assets/donate-wechat.jpg`.
-- The extension should not be used to bypass ChatGPT platform limits, rate limits, or product rules.
+- The extension should not be used to bypass platform limits, rate limits, or product rules.
 
 ## Troubleshooting
 
 - If the panel says the composer was not found, open a normal chat page and make sure the message box is visible.
-- If the send button is not found, click into the ChatGPT composer once, then try again.
+- If the send button is not found, click into the provider composer once, then try again.
 - If tasks fail from timeout, increase Max wait in settings.
-- If ChatGPT changes its UI and sending stops working, inspect the visible composer/send/stop button attributes and update `src/content/chatgptDom.ts`.
+- If a provider changes its UI and sending stops working, inspect the visible composer/send/stop button attributes and update the adapter under `src/content/providers/`.
 - If the panel does not appear, confirm the unpacked extension points at `dist` and that `dist/manifest.json` exists.
 
 ## Development Notes

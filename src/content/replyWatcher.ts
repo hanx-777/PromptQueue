@@ -1,4 +1,5 @@
 import { findChatMainArea, findStopButton } from "./chatgptDom";
+import { getCurrentProviderLabel } from "./providers";
 
 export class ReplyWatcher {
   private readonly stableDelayMs: number;
@@ -58,7 +59,7 @@ export class ReplyWatcher {
       }, 250);
 
       this.timeoutId = window.setTimeout(() => {
-        cleanupReject(new Error(`Timed out waiting for ChatGPT reply after ${Math.round(this.maxWaitMs / 1000)} seconds.`));
+        cleanupReject(new Error(`Timed out waiting for ${getCurrentProviderLabel()} reply after ${Math.round(this.maxWaitMs / 1000)} seconds.`));
       }, this.maxWaitMs);
     });
   }

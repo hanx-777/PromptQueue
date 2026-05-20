@@ -4,7 +4,7 @@ export type Language = QueueSettings["language"];
 
 const zh = {
   appTitle: "Queue Steer",
-  appSubtitle: "ChatGPT \u961f\u5217\u52a9\u624b",
+  appSubtitle: "AI \u961f\u5217\u52a9\u624b",
   running: "\u8fd0\u884c\u4e2d",
   idle: "\u7a7a\u95f2",
   paused: "\u5df2\u6682\u505c",
@@ -88,6 +88,7 @@ const zh = {
   collapsePanel: "\u6298\u53e0\u9762\u677f",
   openSettings: "\u6253\u5f00\u8bbe\u7f6e",
   queueStatus: "\u961f\u5217\u72b6\u6001",
+  toggleTaskStatus: "\u5207\u6362\u4efb\u52a1\u72b6\u6001",
   addQueuePrompt: "\u6dfb\u52a0\u961f\u5217\u4efb\u52a1",
   queuedTasks: "\u961f\u5217\u4efb\u52a1",
   supportTitle: "\u652f\u6301\u4f5c\u8005",
@@ -115,7 +116,7 @@ const zh = {
 
 const en: typeof zh = {
   appTitle: "Queue Steer",
-  appSubtitle: "ChatGPT queue assistant",
+  appSubtitle: "AI queue assistant",
   running: "Running",
   idle: "Idle",
   paused: "Paused",
@@ -199,6 +200,7 @@ const en: typeof zh = {
   collapsePanel: "Collapse panel",
   openSettings: "Open settings",
   queueStatus: "Queue status",
+  toggleTaskStatus: "Toggle task status",
   addQueuePrompt: "Add queue prompt",
   queuedTasks: "Queued tasks",
   supportTitle: "Support",

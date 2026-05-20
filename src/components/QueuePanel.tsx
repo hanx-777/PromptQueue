@@ -13,6 +13,7 @@ import {
   subscribeStorageChanges
 } from "../content/storage";
 import type { QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "../content/types";
+import { getCurrentProviderLabel } from "../content/providers";
 import { clamp, createId } from "../utils/dom";
 import { getErrorMessage } from "../utils/logger";
 import { CollapseIcon, SettingsIcon } from "./Icons";
@@ -219,6 +220,7 @@ export function QueuePanel(): JSX.Element {
   const texts = useMemo(() => getTexts(settings.language), [settings.language]);
   const sections = useMemo(() => getSections(texts), [texts]);
   const theme = settings.theme === "system" ? "system" : settings.theme;
+  const providerLabel = useMemo(() => getCurrentProviderLabel(), []);
   const donateImageUrl = useMemo(() => {
     if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
       return chrome.runtime.getURL("assets/donate-wechat.jpg");
@@ -316,6 +318,13 @@ export function QueuePanel(): JSX.Element {
   const runningIndex = state.currentTaskId
     ? state.tasks.findIndex((task) => task.id === state.currentTaskId) + 1
     : 0;
+  const runStatus = state.isPaused ? "paused" : state.isRunning ? "running" : "idle";
+  const runStatusText = state.isPaused
+    ? texts.paused
+    : state.isRunning
+      ? `${texts.running}${runningIndex ? ` #${runningIndex}` : ""}`
+      : texts.idle;
+  const queuePrimaryLabel = state.isRunning && !state.isPaused ? texts.pause : texts.startQueue;
 
   const updateTasks = async (tasks: QueueTask[], patch: Partial<QueueState> = {}): Promise<void> => {
     await persistState({
@@ -335,6 +344,19 @@ export function QueuePanel(): JSX.Element {
     void updateTasks(state.tasks.filter((task) => task.id !== id), {
       currentTaskId: state.currentTaskId === id ? undefined : state.currentTaskId
     });
+  };
+
+  const toggleTaskStatus = (task: QueueTask): void => {
+    if (task.status === "running") {
+      return;
+    }
+
+    const nextStatus: TaskStatus = task.status === "pending" ? "done" : "pending";
+    void updateTasks(state.tasks.map((item) => (
+      item.id === task.id
+        ? { ...item, status: nextStatus, updatedAt: now(), error: undefined }
+        : item
+    )));
   };
 
   const startQueueTaskEdit = (task: QueueTask): void => {
@@ -602,12 +624,10 @@ export function QueuePanel(): JSX.Element {
       <header className="panel-header">
         <div>
           <h1>{texts.appTitle}</h1>
-          <p>
-            {texts.appSubtitle} - {state.isRunning ? texts.running : texts.idle}
-            {state.isPaused ? ` - ${texts.paused}` : ""}
-          </p>
+          <p>{texts.appSubtitle} · {providerLabel}</p>
         </div>
         <div className="header-actions">
+          <span className={`run-status-pill run-status-${runStatus}`}>{runStatusText}</span>
           <div className="language-toggle" aria-label={texts.language}>
             <button
               type="button"
@@ -716,7 +736,7 @@ export function QueuePanel(): JSX.Element {
                   onClick={handleQueuePrimaryClick}
                   disabled={(!state.isRunning && (Boolean(busyAction) || counters.pending === 0)) || (state.isPaused && counters.pending === 0 && !state.currentTaskId)}
                 >
-                  {texts.startQueue}
+                  {queuePrimaryLabel}
                 </button>
                 <button
                   type="button"
@@ -780,9 +800,15 @@ export function QueuePanel(): JSX.Element {
                       <div className="queue-message-main">
                         <div className="queue-message-meta">
                           <span className="queue-message-index">#{index + 1}</span>
-                          <span className={`status-chip status-${task.status}`}>
+                          <button
+                            type="button"
+                            className={`status-chip status-${task.status} status-toggle`}
+                            onClick={() => toggleTaskStatus(task)}
+                            disabled={task.status === "running"}
+                            title={texts.toggleTaskStatus}
+                          >
                             {statusLabel(task.status, texts)}
-                          </span>
+                          </button>
                         </div>
                         {editingQueueTaskId === task.id ? (
                           <div className="queue-message-edit">

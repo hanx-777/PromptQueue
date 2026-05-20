@@ -335,6 +335,36 @@ textarea::placeholder {
   flex-shrink: 0;
 }
 
+.run-status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.run-status-running {
+  border-color: color-mix(in srgb, var(--running) 50%, var(--border));
+  background: color-mix(in srgb, var(--running) 16%, var(--surface));
+  color: var(--running);
+}
+
+.run-status-paused {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.run-status-idle {
+  color: var(--muted);
+}
+
 .language-toggle {
   display: inline-flex;
   align-items: center;
@@ -829,6 +859,7 @@ textarea::placeholder {
 .status-chip {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 22px;
   border-radius: 999px;
   padding: 0 8px;
@@ -836,6 +867,19 @@ textarea::placeholder {
   font-size: 11px;
   font-weight: 700;
   line-height: 1;
+}
+
+button.status-toggle {
+  border: 0;
+  cursor: pointer;
+}
+
+button.status-toggle:not(:disabled):hover {
+  filter: brightness(1.05);
+}
+
+button.status-toggle:disabled {
+  opacity: 1;
 }
 
 .status-pending {

@@ -1,4 +1,5 @@
 import { clickSend, clickStop, setComposerText } from "./chatgptDom";
+import { getCurrentProviderLabel } from "./providers";
 import { ReplyWatcher } from "./replyWatcher";
 import { loadSettings, loadState, saveState } from "./storage";
 import type { QueueState, QueueTask } from "./types";
@@ -66,7 +67,7 @@ export class QueueRunner {
       if (!stopped) {
         await saveState({
           ...state,
-          lastError: "Stop button was not found. ChatGPT may not be generating right now."
+          lastError: `Stop button was not found. ${getCurrentProviderLabel()} may not be generating right now.`
         });
       } else {
         await saveState({
