@@ -451,7 +451,7 @@ export function QueuePanel(): JSX.Element {
       updatedAt: message.updatedAt
     }));
     const payload = {
-      type: "chatgpt-queue-steer.workflow",
+      type: "promptqueue.workflow",
       version: 1,
       id: workflow.id,
       name: workflow.name,
@@ -617,7 +617,7 @@ export function QueuePanel(): JSX.Element {
     <aside
       className={`queue-shell theme-${theme}`}
       style={{ width: settings.panelWidth }}
-      aria-label="ChatGPT Queue Steer panel"
+      aria-label="PromptQueue panel"
     >
       <div className="resize-handle" onMouseDown={startResize} title="Resize panel" />
 

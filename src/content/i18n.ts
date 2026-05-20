@@ -3,7 +3,7 @@ import type { QueueSettings, TaskStatus } from "./types";
 export type Language = QueueSettings["language"];
 
 const zh = {
-  appTitle: "Queue Steer",
+  appTitle: "PromptQueue",
   appSubtitle: "AI \u961f\u5217\u52a9\u624b",
   running: "\u8fd0\u884c\u4e2d",
   idle: "\u7a7a\u95f2",
@@ -115,7 +115,7 @@ const zh = {
 };
 
 const en: typeof zh = {
-  appTitle: "Queue Steer",
+  appTitle: "PromptQueue",
   appSubtitle: "AI queue assistant",
   running: "Running",
   idle: "Idle",

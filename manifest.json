@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "ChatGPT Queue Steer Extension",
+  "name": "PromptQueue",
   "version": "0.1.0",
-  "description": "Adds a local queue and steer sidebar to ChatGPT, Gemini, and Claude using visible DOM interactions only.",
+  "description": "Adds local prompt queues and steer controls to ChatGPT, Gemini, and Claude using visible DOM interactions only.",
   "permissions": ["storage"],
   "host_permissions": [
     "https://chatgpt.com/*",

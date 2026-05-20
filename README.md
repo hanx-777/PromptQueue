@@ -1,6 +1,6 @@
-# ChatGPT Queue Steer Extension
+# PromptQueue
 
-A local Chrome/Edge Manifest V3 extension that adds Codex-like Queue and Steer controls to ChatGPT, Gemini, and Claude web apps. It works only through visible page DOM interactions: filling the composer, clicking send, and watching the page for reply completion.
+PromptQueue is a local Chrome/Edge Manifest V3 extension that adds Codex-like prompt queue and steer controls to ChatGPT, Gemini, and Claude web apps. It works only through visible page DOM interactions: filling the composer, clicking send, and watching the page for reply completion.
 
 This is not an OpenAI API project. It does not use an API key, backend service, cookies, tokens, private ChatGPT endpoints, or internal network calls.
 
@@ -52,7 +52,7 @@ Then load the extension:
 
 ## Usage
 
-Open ChatGPT, Gemini, or Claude Web while logged in. The Queue Steer panel appears on the right side and shows the active provider in the header.
+Open ChatGPT, Gemini, or Claude Web while logged in. The PromptQueue panel appears on the right side and shows the active provider in the header.
 
 Use the compact navigation bar near the top of the panel:
 

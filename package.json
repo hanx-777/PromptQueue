@@ -1,8 +1,8 @@
 {
-  "name": "chatgpt-queue-steer-extension",
+  "name": "promptqueue-extension",
   "version": "0.1.0",
   "private": true,
-  "description": "A Manifest V3 Chrome/Edge extension that adds queue and steer controls to ChatGPT Web.",
+  "description": "A Manifest V3 Chrome/Edge extension that adds local prompt queue and steer controls to ChatGPT, Gemini, and Claude.",
   "repository": {
     "type": "git",
     "url": "https://github.com/hanx-777/chatgpt-queue-steer-extension.git"

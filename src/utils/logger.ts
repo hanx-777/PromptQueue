@@ -1,4 +1,4 @@
-const PREFIX = "[ChatGPT Queue Steer]";
+const PREFIX = "[PromptQueue]";
 
 export function logInfo(message: string, ...args: unknown[]): void {
   console.info(PREFIX, message, ...args);

@@ -5,7 +5,7 @@ import { isEditableElement } from "../utils/dom";
 import { logInfo, logWarn } from "../utils/logger";
 import styles from "./styles.css?inline";
 
-const HOST_ID = "chatgpt-queue-steer-extension-root";
+const HOST_ID = "promptqueue-extension-root";
 
 function createHost(): HTMLElement | null {
   const existing = document.getElementById(HOST_ID);
