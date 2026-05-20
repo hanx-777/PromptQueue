@@ -189,23 +189,6 @@ function previewPrompt(prompt: string): string {
   return normalized.length > 72 ? `${normalized.slice(0, 72)}...` : normalized;
 }
 
-function reorderTasks(tasks: QueueTask[], draggedId: string, targetId: string): QueueTask[] {
-  if (draggedId === targetId) {
-    return tasks;
-  }
-
-  const draggedIndex = tasks.findIndex((task) => task.id === draggedId);
-  const targetIndex = tasks.findIndex((task) => task.id === targetId);
-  if (draggedIndex < 0 || targetIndex < 0) {
-    return tasks;
-  }
-
-  const next = [...tasks];
-  const [dragged] = next.splice(draggedIndex, 1);
-  next.splice(targetIndex, 0, dragged);
-  return next.map((task) => ({ ...task, updatedAt: task.id === draggedId ? now() : task.updatedAt }));
-}
-
 function getSections(texts: Texts): Array<{ id: PanelSection; label: string }> {
   return [
     { id: "run", label: texts.navRun },
@@ -396,6 +379,38 @@ export function QueuePanel(): JSX.Element {
     });
   };
 
+  const handleQueuePrimaryAction = async (): Promise<void> => {
+    const latest = await loadState();
+    if (latest.isRunning && !latest.isPaused) {
+      await persistState({ ...latest, isPaused: true });
+      return;
+    }
+    if (latest.isPaused) {
+      await runnerRef.current.resume();
+      return;
+    }
+    await runnerRef.current.start();
+  };
+
+  const handleQueuePrimaryClick = (): void => {
+    if (!state.isRunning) {
+      void runBusy("queue-primary", handleQueuePrimaryAction);
+      return;
+    }
+
+    void (async () => {
+      try {
+        await handleQueuePrimaryAction();
+        await refresh();
+      } catch (error) {
+        const message = getErrorMessage(error);
+        setLocalMessage(message);
+        const latest = await loadState();
+        await persistState({ ...latest, lastError: message });
+      }
+    })();
+  };
+
   const queueMessagesFromTasks = (tasks: QueueTask[]): WorkflowMessage[] => (
     tasks.map((task) => makeWorkflowMessage(task.prompt))
   );
@@ -455,7 +470,7 @@ export function QueuePanel(): JSX.Element {
     await persistWorkflows([...latestWorkflows, workflow]);
     setWorkflowNameDraft("");
     setSaveWorkflowOpen(false);
-    setExpandedWorkflowId(workflow.id);
+    setExpandedWorkflowId(null);
     setLocalMessage(`${texts.workflowSaved}: ${name}`);
   };
 
@@ -478,7 +493,7 @@ export function QueuePanel(): JSX.Element {
     const name = getUniqueWorkflowName(importedName, latestWorkflows);
     const workflow = makeWorkflow(name, messages);
     await persistWorkflows([...latestWorkflows, workflow]);
-    setExpandedWorkflowId(workflow.id);
+    setExpandedWorkflowId(null);
     setLocalMessage(`${texts.workflowImported}: ${name}`);
   };
 
@@ -502,17 +517,17 @@ export function QueuePanel(): JSX.Element {
     }
   };
 
-  const loadWorkflowToQueue = async (id: string): Promise<void> => {
+  const runWorkflow = async (id: string): Promise<void> => {
     const workflow = workflows.find((item) => item.id === id);
     if (!workflow) {
       return;
     }
     const latest = await loadState();
-    if (latest.currentTaskId) {
-      throw new Error(texts.cannotReplaceRunningQueue);
+    if (latest.isRunning || latest.currentTaskId) {
+      throw new Error(texts.workflowRunBlocked);
     }
 
-    await persistState({
+    await saveState({
       ...latest,
       tasks: tasksFromWorkflow(workflow),
       isRunning: false,
@@ -520,20 +535,9 @@ export function QueuePanel(): JSX.Element {
       currentTaskId: undefined,
       lastError: undefined
     });
-  };
-
-  const appendWorkflowToQueue = async (id: string): Promise<void> => {
-    const workflow = workflows.find((item) => item.id === id);
-    if (!workflow) {
-      return;
-    }
-
-    const latest = await loadState();
-    await persistState({
-      ...latest,
-      tasks: [...latest.tasks, ...tasksFromWorkflow(workflow)],
-      lastError: undefined
-    });
+    setActiveSection("run");
+    setExpandedWorkflowId(null);
+    await runnerRef.current.start();
   };
 
   const exportWorkflowById = (id: string): void => {
@@ -659,7 +663,12 @@ export function QueuePanel(): JSX.Element {
             type="button"
             className={activeSection === section.id ? "active" : ""}
             aria-current={activeSection === section.id ? "page" : undefined}
-            onClick={() => setActiveSection(section.id)}
+            onClick={() => {
+              setActiveSection(section.id);
+              if (section.id === "workflow") {
+                setExpandedWorkflowId(null);
+              }
+            }}
           >
             {section.label}
           </button>
@@ -701,23 +710,20 @@ export function QueuePanel(): JSX.Element {
               <div className="section-title-row compact">
                 <h2>{texts.controls}</h2>
               </div>
-              <div className="control-grid">
-                <button type="button" onClick={() => void runBusy("start", () => runnerRef.current.start())} disabled={Boolean(busyAction) || counters.pending === 0}>
+              <div className="control-grid compact-controls">
+                <button
+                  type="button"
+                  onClick={handleQueuePrimaryClick}
+                  disabled={(!state.isRunning && (Boolean(busyAction) || counters.pending === 0)) || (state.isPaused && counters.pending === 0 && !state.currentTaskId)}
+                >
                   {texts.startQueue}
                 </button>
-                <button type="button" className="secondary" onClick={() => runnerRef.current.pause()} disabled={!state.isRunning || state.isPaused}>
-                  {texts.pause}
-                </button>
-                <button type="button" onClick={() => void runBusy("resume", () => runnerRef.current.resume())} disabled={Boolean(busyAction) || counters.pending === 0 || (!state.isPaused && state.isRunning)}>
-                  {texts.resume}
-                </button>
-                <button type="button" className="warning" onClick={() => void runBusy("stop", () => runnerRef.current.stopCurrent())} disabled={Boolean(busyAction)}>
-                  {texts.stopCurrent}
-                </button>
-                <button type="button" className="secondary" onClick={() => void updateTasks(state.tasks.filter((task) => task.status !== "done"))} disabled={!counters.done}>
-                  {texts.clearDone}
-                </button>
-                <button type="button" className="danger" onClick={() => void persistState({ ...DEFAULT_STATE })} disabled={!state.tasks.length || state.currentTaskId !== undefined}>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => void persistState({ ...DEFAULT_STATE })}
+                  disabled={!state.tasks.length || state.currentTaskId !== undefined || (state.isRunning && !state.isPaused)}
+                >
                   {texts.clearAll}
                 </button>
               </div>
@@ -853,9 +859,9 @@ export function QueuePanel(): JSX.Element {
                   onToggle={(id) => setExpandedWorkflowId((current) => (current === id ? null : id))}
                   onRename={(id, name) => void runBusy("rename-workflow", () => renameWorkflow(id, name))}
                   onDelete={(id) => void runBusy("delete-workflow", () => deleteWorkflow(id))}
-                  onLoad={(id) => void runBusy("load-workflow", () => loadWorkflowToQueue(id))}
-                  onAppend={(id) => void runBusy("append-workflow", () => appendWorkflowToQueue(id))}
+                  onRun={(id) => void runBusy("run-workflow", () => runWorkflow(id))}
                   onExport={exportWorkflowById}
+                  runDisabled={Boolean(busyAction) || state.isRunning || workflow.messages.length === 0}
                   onUpdateMessages={(id, messages) => void runBusy("update-workflow", () => updateWorkflowMessages(id, messages))}
                 />
               ))

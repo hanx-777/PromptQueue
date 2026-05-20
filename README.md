@@ -12,7 +12,7 @@ This is not an OpenAI API project. It does not use an API key, backend service, 
 - Prompt states: pending, running, done, failed, skipped
 - Batch add prompts split by `---`, `###`, or a custom separator line
 - Automatic next-message sending after ChatGPT output appears stable
-- Pause, resume, retry, skip, clear, named workflow import/export, and workflow message editing
+- Combined start/pause control, clear, named workflow import/export, and workflow message editing
 - Steer Next and Stop & Steer
 - Chinese / English UI toggle
 - Support tab with GitHub Star link and local WeChat Pay donation QR code
@@ -54,16 +54,16 @@ Open ChatGPT Web while logged in. The Queue Steer panel appears on the right sid
 
 Use the compact navigation bar near the top of the panel:
 
-- Run: add queue messages, insert steer prompts, start/pause/resume/stop the queue, save the current queue as a named workflow, and watch the compact Queue Messages list update.
-- Workflow: manage saved named workflows, expand a workflow to edit its messages, load or append it to the current queue, import/export workflow JSON.
+- Run: add queue messages, insert steer prompts, start/pause the queue with one compact control, clear the queue, save the current queue as a named workflow, and watch Queue Messages update.
+- Workflow: manage saved named workflows, run a workflow, expand it to edit its name/messages, delete from the card corner, and import/export workflow JSON.
 - Settings: timing, language, theme, separators, and panel width.
 - Support: GitHub Star link and optional donation QR code.
 
-In Run, add prompts in the textarea and click Add to Queue. Put `---` or `###` on its own line to split multiple prompts into separate queue messages. New messages append to the bottom of the current queue, including while another message is running. Click Save as Workflow to name the current queue, for example `Test`, and store it locally as a reusable workflow. Click Start to send the first pending message.
+In Run, add prompts in the textarea and click Add to Queue. Put `---` or `###` on its own line to split multiple prompts into separate queue messages. New messages append to the bottom of the current queue, including while another message is running. Click Save as Workflow to name the current queue, for example `Test`, and store it locally as a reusable workflow. Click Start to send the first pending message; click the same Start control while running to pause after the current response.
 
 The extension waits for ChatGPT generation to finish by observing DOM changes and the visible stop button. When output is stable for the configured delay, the task is marked done and the next pending task starts if auto-start is enabled.
 
-Use Pause to finish the current response but prevent the next task from sending. Use Resume to continue. Stop attempts to click ChatGPT's visible stop button.
+Pausing does not stop the current ChatGPT response; it prevents the next queue message from being sent. Stop & Steer still attempts to click ChatGPT's visible stop button before inserting a steer message.
 
 ## Queue And Workflow Behavior
 
@@ -75,7 +75,7 @@ Use Pause to finish the current response but prevent the next task from sending.
 - A Workflow is a saved named template made from multiple queue messages.
 - The Workflow library is stored locally in `chrome.storage.local` alongside the current queue and settings.
 - Save as Workflow stores the current queue as pending reusable messages and does not clear the Run queue.
-- Load Queue replaces the current queue with the workflow messages as pending tasks. Append to Queue adds them to the bottom.
+- Run on a workflow replaces the current queue with that workflow's messages as pending tasks and starts immediately.
 - Export Workflow writes `type`, `version`, `name`, `exportedAt`, `messages`, and related settings.
 - Import Workflow supports both new workflow JSON and older queue JSON, creates a new named workflow, assigns fresh IDs, and restores every imported message as pending.
 - Refreshing the page preserves the queue. Any previously running message is restored to pending and a warning is shown.

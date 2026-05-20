@@ -379,27 +379,29 @@ textarea::placeholder {
 }
 
 .status-bar {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  padding: 10px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
   border-bottom: 1px solid var(--border);
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
   background: var(--surface);
 }
 
 .status-bar span {
-  padding: 4px 7px;
+  min-height: 22px;
+  padding: 2px 7px;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: 999px;
   background: var(--surface-soft);
   white-space: nowrap;
+  line-height: 16px;
 }
 
 .message-banner {
-  margin: 10px 14px;
-  padding: 9px 10px;
+  margin: 8px 10px;
+  padding: 8px 9px;
   border: 1px solid var(--error-border);
   border-radius: 10px;
   background: var(--error-bg);
@@ -500,6 +502,10 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
+}
+
+.control-grid.compact-controls button {
+  min-height: 38px;
 }
 
 .control-grid.two {
@@ -667,7 +673,7 @@ textarea::placeholder {
 
 .workflow-card {
   display: grid;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 9px;
   padding: 10px;
   border: 1px solid var(--border);
@@ -677,9 +683,9 @@ textarea::placeholder {
 
 .workflow-card-header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 9px;
-  align-items: start;
+  align-items: center;
 }
 
 .workflow-card-title {
@@ -701,15 +707,31 @@ textarea::placeholder {
   line-height: 1.35;
 }
 
+.workflow-toggle-button,
+.workflow-delete-button {
+  width: 30px;
+  min-width: 30px;
+  height: 30px;
+}
+
+.workflow-delete-button {
+  color: var(--muted);
+}
+
+.workflow-delete-button:hover:not(:disabled) {
+  border-color: var(--danger-border);
+  color: var(--danger-bg);
+}
+
 .workflow-rename-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
 }
 
 .workflow-card-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
 }
 
@@ -724,6 +746,17 @@ textarea::placeholder {
   gap: 9px;
   padding-top: 8px;
   border-top: 1px solid var(--border);
+}
+
+.workflow-name-editor {
+  display: grid;
+  gap: 5px;
+}
+
+.workflow-name-editor label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .workflow-add-message {
@@ -959,8 +992,7 @@ textarea::placeholder {
   .control-grid,
   .control-grid.two,
   .save-workflow-form,
-  .workflow-rename-row,
-  .workflow-card-actions {
+  .workflow-rename-row {
     grid-template-columns: 1fr;
   }
 

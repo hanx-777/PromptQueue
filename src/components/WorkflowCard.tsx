@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import type { Texts } from "../content/i18n";
 import type { QueueWorkflow, WorkflowMessage } from "../content/types";
 import { createId } from "../utils/dom";
-import { GripIcon, MinusIcon, PlusIcon } from "./Icons";
+import { CloseIcon, GripIcon, MinusIcon, PlusIcon } from "./Icons";
 
 interface WorkflowCardProps {
   workflow: QueueWorkflow;
@@ -11,9 +11,9 @@ interface WorkflowCardProps {
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
-  onLoad: (id: string) => void;
-  onAppend: (id: string) => void;
+  onRun: (id: string) => void;
   onExport: (id: string) => void;
+  runDisabled: boolean;
   onUpdateMessages: (id: string, messages: WorkflowMessage[]) => void;
 }
 
@@ -62,12 +62,11 @@ export function WorkflowCard({
   onToggle,
   onRename,
   onDelete,
-  onLoad,
-  onAppend,
+  onRun,
   onExport,
+  runDisabled,
   onUpdateMessages
 }: WorkflowCardProps): JSX.Element {
-  const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(workflow.name);
   const [newMessageDraft, setNewMessageDraft] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
@@ -88,7 +87,6 @@ export function WorkflowCard({
       return;
     }
     onRename(workflow.id, trimmed);
-    setRenaming(false);
   };
 
   const addMessage = (): void => {
@@ -165,7 +163,7 @@ export function WorkflowCard({
       <div className="workflow-card-header">
         <button
           type="button"
-          className="icon-button"
+          className="icon-button workflow-toggle-button"
           onClick={() => onToggle(workflow.id)}
           aria-label={expanded ? texts.collapseWorkflow : texts.expandWorkflow}
           title={expanded ? texts.collapseWorkflow : texts.expandWorkflow}
@@ -174,48 +172,27 @@ export function WorkflowCard({
         </button>
 
         <div className="workflow-card-title">
-          {renaming ? (
-            <div className="workflow-rename-row">
-              <input
-                value={nameDraft}
-                onChange={(event) => setNameDraft(event.target.value)}
-                placeholder={texts.workflowNamePlaceholder}
-              />
-              <button type="button" onClick={saveRename} disabled={!nameDraft.trim()}>
-                {texts.save}
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                onClick={() => {
-                  setNameDraft(workflow.name);
-                  setRenaming(false);
-                }}
-              >
-                {texts.cancel}
-              </button>
-            </div>
-          ) : (
-            <>
-              <h3>{workflow.name}</h3>
-              <p>
-                {workflow.messages.length} {texts.workflowMessageUnit} · {texts.updatedAt}:{" "}
-                {new Date(workflow.updatedAt).toLocaleString()}
-              </p>
-            </>
-          )}
+          <h3>{workflow.name}</h3>
+          <p>
+            {workflow.messages.length} {texts.workflowMessageUnit} · {texts.updatedAt}:{" "}
+            {new Date(workflow.updatedAt).toLocaleString()}
+          </p>
         </div>
+
+        <button
+          type="button"
+          className="icon-button workflow-delete-button"
+          onClick={() => onDelete(workflow.id)}
+          aria-label={texts.deleteWorkflow}
+          title={texts.deleteWorkflow}
+        >
+          <CloseIcon />
+        </button>
       </div>
 
       <div className="workflow-card-actions">
-        <button type="button" onClick={() => onLoad(workflow.id)}>
-          {texts.loadToQueue}
-        </button>
-        <button type="button" className="secondary" onClick={() => onAppend(workflow.id)}>
-          {texts.appendToQueue}
-        </button>
-        <button type="button" className="secondary" onClick={() => setRenaming(true)}>
-          {texts.rename}
+        <button type="button" onClick={() => onRun(workflow.id)} disabled={runDisabled}>
+          {texts.runWorkflow}
         </button>
         <button type="button" className="secondary" onClick={() => onToggle(workflow.id)}>
           {texts.edit}
@@ -223,13 +200,24 @@ export function WorkflowCard({
         <button type="button" className="secondary" onClick={() => onExport(workflow.id)}>
           {texts.exportWorkflow}
         </button>
-        <button type="button" className="secondary" onClick={() => onDelete(workflow.id)}>
-          {texts.delete}
-        </button>
       </div>
 
       {expanded ? (
         <div className="workflow-editor">
+          <div className="workflow-name-editor">
+            <label>{texts.workflowNameLabel}</label>
+            <div className="workflow-rename-row">
+              <input
+                value={nameDraft}
+                onChange={(event) => setNameDraft(event.target.value)}
+                placeholder={texts.workflowNamePlaceholder}
+              />
+              <button type="button" onClick={saveRename} disabled={!nameDraft.trim() || nameDraft.trim() === workflow.name}>
+                {texts.save}
+              </button>
+            </div>
+          </div>
+
           <div className="workflow-add-message">
             <textarea
               value={newMessageDraft}
