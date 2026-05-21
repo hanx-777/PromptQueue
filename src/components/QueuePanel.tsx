@@ -13,10 +13,10 @@ import {
   subscribeStorageChanges
 } from "../content/storage";
 import type { QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "../content/types";
-import { getCurrentProviderLabel } from "../content/providers";
+import { getCurrentProvider } from "../content/providers";
 import { clamp, createId } from "../utils/dom";
 import { getErrorMessage } from "../utils/logger";
-import { CollapseIcon, SettingsIcon } from "./Icons";
+import { CollapseIcon, ExpandIcon, SettingsIcon } from "./Icons";
 import { SettingsPanel } from "./SettingsPanel";
 import { SteerBox } from "./SteerBox";
 import { WorkflowCard } from "./WorkflowCard";
@@ -230,9 +230,13 @@ export function QueuePanel(): JSX.Element {
   const [editingQueueTaskId, setEditingQueueTaskId] = useState<string | null>(null);
   const [queueTaskDraft, setQueueTaskDraft] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
+  const [queueActionBusy, setQueueActionBusy] = useState(false);
+  const [steerBusy, setSteerBusy] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
   const runnerRef = useRef(new QueueRunner());
   const busyRef = useRef(false);
+  const queueActionBusyRef = useRef(false);
+  const steerBusyRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const resizingRef = useRef(false);
   const draggedWorkflowIdRef = useRef<string | null>(null);
@@ -240,7 +244,9 @@ export function QueuePanel(): JSX.Element {
   const texts = useMemo(() => getTexts(settings.language), [settings.language]);
   const sections = useMemo(() => getSections(texts), [texts]);
   const theme = settings.theme === "system" ? "system" : settings.theme;
-  const providerLabel = useMemo(() => getCurrentProviderLabel(), []);
+  const provider = useMemo(() => getCurrentProvider(), []);
+  const providerLabel = provider.label;
+  const providerClass = `provider-${provider.id}`;
   const donateImageUrl = useMemo(() => {
     if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
       return chrome.runtime.getURL("assets/donate-wechat.jpg");
@@ -299,6 +305,50 @@ export function QueuePanel(): JSX.Element {
     } finally {
       busyRef.current = false;
       setBusyAction(null);
+    }
+  }, [persistState, refresh]);
+
+  const handleBackgroundQueueError = useCallback(async (error: unknown) => {
+    const message = getErrorMessage(error);
+    setLocalMessage(message);
+    const latest = await loadState();
+    await persistState({
+      ...latest,
+      isRunning: false,
+      isPaused: true,
+      currentTaskId: undefined,
+      lastError: message
+    });
+  }, [persistState]);
+
+  const runQueueInBackground = useCallback(() => {
+    void runnerRef.current.runNext()
+      .then(refresh)
+      .catch((error: unknown) => {
+        void handleBackgroundQueueError(error);
+      });
+  }, [handleBackgroundQueueError, refresh]);
+
+  const runSteer = useCallback(async (action: () => Promise<void>) => {
+    if (steerBusyRef.current) {
+      return;
+    }
+
+    steerBusyRef.current = true;
+    setSteerBusy(true);
+    setLocalMessage(null);
+
+    try {
+      await action();
+      await refresh();
+    } catch (error) {
+      const message = getErrorMessage(error);
+      setLocalMessage(message);
+      const latest = await loadState();
+      await persistState({ ...latest, lastError: message });
+    } finally {
+      steerBusyRef.current = false;
+      setSteerBusy(false);
     }
   }, [persistState, refresh]);
 
@@ -411,12 +461,12 @@ export function QueuePanel(): JSX.Element {
   };
 
   const stopAndSteer = async (prompt: string): Promise<void> => {
-    await runBusy("stop-steer", async () => {
+    await runSteer(async () => {
       await runnerRef.current.stopCurrent();
       await insertSteerTask(prompt, false);
       const latest = await loadState();
       if (latest.isRunning && !latest.currentTaskId && !latest.isPaused) {
-        await runnerRef.current.runNext();
+        runQueueInBackground();
       }
     });
   };
@@ -428,17 +478,33 @@ export function QueuePanel(): JSX.Element {
       return;
     }
     if (latest.isPaused) {
-      await runnerRef.current.resume();
+      await persistState({
+        ...latest,
+        isRunning: true,
+        isPaused: false,
+        lastError: undefined
+      });
+      runQueueInBackground();
       return;
     }
-    await runnerRef.current.start();
+
+    await persistState({
+      ...latest,
+      isRunning: true,
+      isPaused: false,
+      lastError: undefined
+    });
+    runQueueInBackground();
   };
 
   const handleQueuePrimaryClick = (): void => {
-    if (!state.isRunning) {
-      void runBusy("queue-primary", handleQueuePrimaryAction);
+    if (queueActionBusyRef.current) {
       return;
     }
+
+    queueActionBusyRef.current = true;
+    setQueueActionBusy(true);
+    setLocalMessage(null);
 
     void (async () => {
       try {
@@ -449,6 +515,9 @@ export function QueuePanel(): JSX.Element {
         setLocalMessage(message);
         const latest = await loadState();
         await persistState({ ...latest, lastError: message });
+      } finally {
+        queueActionBusyRef.current = false;
+        setQueueActionBusy(false);
       }
     })();
   };
@@ -654,7 +723,7 @@ export function QueuePanel(): JSX.Element {
 
   if (settings.collapsed) {
     return (
-      <aside className={`queue-shell collapsed theme-${theme}`} style={{ width: 44 }}>
+      <aside className={`queue-shell collapsed theme-${theme} ${providerClass}`} style={{ width: 44 }}>
         <button
           type="button"
           className="collapse-tab"
@@ -662,7 +731,8 @@ export function QueuePanel(): JSX.Element {
           aria-label={texts.expandPanel}
           title={`${texts.expandPanel} (Alt+Q)`}
         >
-          Q
+          <ExpandIcon />
+          <span>PQ</span>
         </button>
       </aside>
     );
@@ -670,15 +740,16 @@ export function QueuePanel(): JSX.Element {
 
   return (
     <aside
-      className={`queue-shell theme-${theme}`}
+      className={`queue-shell theme-${theme} ${providerClass}`}
       style={{ width: settings.panelWidth }}
       aria-label="PromptQueue panel"
     >
       <div className="resize-handle" onMouseDown={startResize} title="Resize panel" />
 
       <header className="panel-header">
-        <div>
+        <div className="header-brand">
           <h1>{texts.appTitle}</h1>
+          <span className="provider-tag">{providerLabel}</span>
           <p>{texts.appSubtitle} · {providerLabel}</p>
         </div>
         <div className="header-actions">
@@ -788,9 +859,9 @@ export function QueuePanel(): JSX.Element {
             <SteerBox
               settings={settings}
               texts={texts}
-              busy={Boolean(busyAction)}
+              busy={steerBusy}
               onSettingsChange={(nextSettings) => void persistSettings(nextSettings)}
-              onInsertNext={(prompt) => runBusy("steer", () => insertSteerTask(prompt))}
+              onInsertNext={(prompt) => runSteer(() => insertSteerTask(prompt))}
               onStopAndSteer={stopAndSteer}
             />
 
@@ -802,7 +873,7 @@ export function QueuePanel(): JSX.Element {
                 <button
                   type="button"
                   onClick={handleQueuePrimaryClick}
-                  disabled={(!state.isRunning && (Boolean(busyAction) || counters.pending === 0)) || (state.isPaused && counters.pending === 0 && !state.currentTaskId)}
+                  disabled={queueActionBusy || (!state.isRunning && (counters.pending === 0)) || (state.isPaused && counters.pending === 0 && !state.currentTaskId)}
                 >
                   {queuePrimaryLabel}
                 </button>

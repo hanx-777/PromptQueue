@@ -1,10 +1,4 @@
 import { getCurrentProvider, getCurrentProviderLabel } from "./providers";
-import type { ProviderGenerationSnapshot } from "./providers";
-
-const MIN_WAIT_AFTER_SEND_MS = 3000;
-const LONG_REPLY_STABLE_DELAY_MS = 5000;
-const MEDIA_STABLE_DELAY_MS = 8000;
-const LONG_REPLY_TEXT_LENGTH = 2400;
 
 export class ReplyWatcher {
   private readonly stableDelayMs: number;
@@ -13,10 +7,6 @@ export class ReplyWatcher {
   private intervalId: number | null = null;
   private timeoutId: number | null = null;
   private lastMutationAt = Date.now();
-  private lastAssistantChangeAt = Date.now();
-  private startedAt = Date.now();
-  private lastAssistantSignature = "";
-  private sawAssistantMedia = false;
   private disposed = false;
 
   constructor(options: { stableDelayMs: number; maxWaitMs: number }) {
@@ -28,10 +18,6 @@ export class ReplyWatcher {
     this.dispose();
     this.disposed = false;
     this.lastMutationAt = Date.now();
-    this.lastAssistantChangeAt = Date.now();
-    this.startedAt = Date.now();
-    this.lastAssistantSignature = "";
-    this.sawAssistantMedia = false;
 
     const provider = getCurrentProvider();
     const target = provider.findMainArea();
@@ -64,16 +50,10 @@ export class ReplyWatcher {
           return;
         }
 
-        const snapshot = provider.getGenerationSnapshot();
-        const now = Date.now();
-        this.sawAssistantMedia = this.sawAssistantMedia || snapshot.pendingMedia || snapshot.assistantMediaCount > 0;
+        const stopButtonExists = Boolean(provider.findStopButton());
+        const stableForMs = Date.now() - this.lastMutationAt;
 
-        if (snapshot.assistantSignature !== this.lastAssistantSignature) {
-          this.lastAssistantSignature = snapshot.assistantSignature;
-          this.lastAssistantChangeAt = now;
-        }
-
-        if (this.isComplete(snapshot, now)) {
+        if (!stopButtonExists && stableForMs >= this.stableDelayMs) {
           cleanupResolve();
         }
       }, 250);
@@ -101,37 +81,5 @@ export class ReplyWatcher {
       window.clearTimeout(this.timeoutId);
       this.timeoutId = null;
     }
-  }
-
-  private requiredStableDelay(snapshot: ProviderGenerationSnapshot): number {
-    if (snapshot.pendingMedia || this.sawAssistantMedia || snapshot.assistantMediaCount > 0) {
-      return Math.max(this.stableDelayMs, MEDIA_STABLE_DELAY_MS);
-    }
-
-    if (snapshot.assistantTextLength >= LONG_REPLY_TEXT_LENGTH) {
-      return Math.max(this.stableDelayMs, LONG_REPLY_STABLE_DELAY_MS);
-    }
-
-    return this.stableDelayMs;
-  }
-
-  private isComplete(snapshot: ProviderGenerationSnapshot, now: number): boolean {
-    if (now - this.startedAt < MIN_WAIT_AFTER_SEND_MS) {
-      return false;
-    }
-
-    if (snapshot.stopButtonVisible || snapshot.generatingIndicators > 0 || snapshot.pendingMedia) {
-      return false;
-    }
-
-    if (!snapshot.composerReady && !snapshot.sendReady) {
-      return false;
-    }
-
-    const requiredStableDelay = this.requiredStableDelay(snapshot);
-    const domStableForMs = now - this.lastMutationAt;
-    const assistantStableForMs = now - this.lastAssistantChangeAt;
-
-    return domStableForMs >= requiredStableDelay && assistantStableForMs >= requiredStableDelay;
   }
 }

@@ -69,11 +69,11 @@ export function SteerBox({
         rows={3}
       />
       <div className="control-grid two">
-        <button type="button" onClick={insert} disabled={busy || !steerPrompt.trim()}>
-          {texts.insertAsNext}
-        </button>
         <button type="button" className="warning" onClick={stopAndSteer} disabled={busy || !steerPrompt.trim()}>
           {texts.stopAndSteer}
+        </button>
+        <button type="button" onClick={insert} disabled={busy || !steerPrompt.trim()}>
+          {texts.insertAsNext}
         </button>
       </div>
     </section>

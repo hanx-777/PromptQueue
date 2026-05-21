@@ -24,6 +24,14 @@ export function SettingsIcon({ className }: IconProps): JSX.Element {
 export function CollapseIcon({ className }: IconProps): JSX.Element {
   return (
     <IconShell className={className}>
+      <path d="m9 6 6 6-6 6" />
+    </IconShell>
+  );
+}
+
+export function ExpandIcon({ className }: IconProps): JSX.Element {
+  return (
+    <IconShell className={className}>
       <path d="M15 6 9 12l6 6" />
     </IconShell>
   );
