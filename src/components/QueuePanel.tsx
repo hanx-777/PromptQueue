@@ -22,9 +22,11 @@ import { SteerBox } from "./SteerBox";
 import { WorkflowCard } from "./WorkflowCard";
 
 type PanelSection = "run" | "workflow" | "settings" | "support";
+type ResolvedTheme = Exclude<QueueSettings["theme"], "page">;
 
 const GITHUB_REPO_URL = "https://github.com/hanx-777/PromptQueue";
 const KOFI_URL = "https://ko-fi.com/hanx1221";
+const DARK_THEME_QUERY = "(prefers-color-scheme: dark)";
 
 function now(): number {
   return Date.now();
@@ -217,6 +219,80 @@ function reorderWorkflows(workflows: QueueWorkflow[], draggedId: string, targetI
   return next;
 }
 
+function detectThemeKeyword(value: string | null | undefined): ResolvedTheme | null {
+  if (!value) {
+    return null;
+  }
+
+  const normalized = value.toLowerCase();
+  if (/(^|[\s_-])(dark|night|black)([\s_-]|$)/.test(normalized)) {
+    return "dark";
+  }
+  if (/(^|[\s_-])(light|day|white)([\s_-]|$)/.test(normalized)) {
+    return "light";
+  }
+  return null;
+}
+
+function parseColorChannel(value: string): number | null {
+  const numeric = Number(value.trim());
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function detectThemeFromColor(color: string): ResolvedTheme | null {
+  const match = color.match(/rgba?\(([^)]+)\)/i);
+  if (!match) {
+    return null;
+  }
+
+  const channels = match[1].replace("/", " ").split(/[,\s]+/).filter(Boolean);
+  const red = parseColorChannel(channels[0] ?? "");
+  const green = parseColorChannel(channels[1] ?? "");
+  const blue = parseColorChannel(channels[2] ?? "");
+  const alpha = channels[3] === undefined ? 1 : Number(channels[3].trim());
+  if (red === null || green === null || blue === null || alpha === 0) {
+    return null;
+  }
+
+  const luminance = (0.2126 * red + 0.7152 * green + 0.0722 * blue) / 255;
+  return luminance < 0.45 ? "dark" : "light";
+}
+
+function getSystemTheme(): ResolvedTheme {
+  return window.matchMedia?.(DARK_THEME_QUERY).matches ? "dark" : "light";
+}
+
+function detectPageTheme(): ResolvedTheme {
+  const roots = [document.documentElement, document.body].filter(Boolean) as HTMLElement[];
+  const hints = roots.flatMap((element) => [
+    element.getAttribute("data-theme"),
+    element.getAttribute("data-color-mode"),
+    element.getAttribute("data-color-scheme"),
+    element.getAttribute("data-mode"),
+    element.className,
+    window.getComputedStyle(element).colorScheme
+  ]);
+
+  for (const hint of hints) {
+    const theme = detectThemeKeyword(typeof hint === "string" ? hint : String(hint));
+    if (theme) {
+      return theme;
+    }
+  }
+
+  for (const element of [document.body, document.documentElement]) {
+    if (!element) {
+      continue;
+    }
+    const theme = detectThemeFromColor(window.getComputedStyle(element).backgroundColor);
+    if (theme) {
+      return theme;
+    }
+  }
+
+  return getSystemTheme();
+}
+
 export function QueuePanel(): JSX.Element {
   const [state, setState] = useState<QueueState>(DEFAULT_STATE);
   const [settings, setSettings] = useState<QueueSettings>(DEFAULT_SETTINGS);
@@ -233,6 +309,7 @@ export function QueuePanel(): JSX.Element {
   const [queueActionBusy, setQueueActionBusy] = useState(false);
   const [steerBusy, setSteerBusy] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
+  const [pageTheme, setPageTheme] = useState<ResolvedTheme>(() => detectPageTheme());
   const runnerRef = useRef(new QueueRunner());
   const busyRef = useRef(false);
   const queueActionBusyRef = useRef(false);
@@ -243,7 +320,7 @@ export function QueuePanel(): JSX.Element {
 
   const texts = useMemo(() => getTexts(settings.language), [settings.language]);
   const sections = useMemo(() => getSections(texts), [texts]);
-  const theme = settings.theme === "system" ? "system" : settings.theme;
+  const theme = settings.theme === "page" ? pageTheme : settings.theme;
   const provider = useMemo(() => getCurrentProvider(), []);
   const providerLabel = provider.label;
   const providerClass = `provider-${provider.id}`;
@@ -271,6 +348,37 @@ export function QueuePanel(): JSX.Element {
       void refresh();
     });
   }, [refresh]);
+
+  useEffect(() => {
+    const updatePageTheme = (): void => setPageTheme(detectPageTheme());
+    const observer = new MutationObserver(updatePageTheme);
+    const observerOptions: MutationObserverInit = {
+      attributes: true,
+      attributeFilter: ["class", "style", "data-theme", "data-color-mode", "data-color-scheme", "data-mode"]
+    };
+
+    observer.observe(document.documentElement, observerOptions);
+    if (document.body) {
+      observer.observe(document.body, observerOptions);
+    }
+
+    const media = window.matchMedia?.(DARK_THEME_QUERY);
+    if (media?.addEventListener) {
+      media.addEventListener("change", updatePageTheme);
+    } else {
+      media?.addListener?.(updatePageTheme);
+    }
+    updatePageTheme();
+
+    return () => {
+      observer.disconnect();
+      if (media?.removeEventListener) {
+        media.removeEventListener("change", updatePageTheme);
+      } else {
+        media?.removeListener?.(updatePageTheme);
+      }
+    };
+  }, []);
 
   const persistState = useCallback(async (nextState: QueueState) => {
     setState(nextState);

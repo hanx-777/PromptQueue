@@ -121,7 +121,7 @@ export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPa
           value={settings.theme}
           onChange={(event) => update("theme", event.target.value as QueueSettings["theme"])}
         >
-          <option value="system">{texts.system}</option>
+          <option value="page">{texts.system}</option>
           <option value="light">{texts.light}</option>
           <option value="dark">{texts.dark}</option>
         </select>

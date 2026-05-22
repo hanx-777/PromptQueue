@@ -29,8 +29,8 @@ a {
 }
 
 button {
-  border: 1px solid transparent;
-  border-radius: 8px;
+  border: 1px solid var(--button-border, transparent);
+  border-radius: var(--button-radius, 8px);
   min-height: 34px;
   padding: 7px 10px;
   background: var(--button);
@@ -48,6 +48,7 @@ button {
 
 button:hover:not(:disabled) {
   background: var(--button-hover);
+  border-color: var(--button-hover-border, var(--button-border, transparent));
 }
 
 button:focus-visible,
@@ -103,7 +104,7 @@ input,
 select {
   width: 100%;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--control-radius, 10px);
   background: var(--input);
   color: var(--text);
   outline: none;
@@ -147,6 +148,8 @@ textarea::placeholder {
 
 .queue-shell {
   --bg: #f7f7f5;
+  --color-scheme: light;
+  --font-ui: "OpenAI Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --surface: #ffffff;
   --surface-soft: #f0f0ee;
   --surface-hover: #ececea;
@@ -158,7 +161,11 @@ textarea::placeholder {
   --input: #ffffff;
   --button: var(--provider-accent);
   --button-hover: var(--provider-accent-hover);
+  --button-border: transparent;
+  --button-hover-border: transparent;
   --button-text: #ffffff;
+  --button-radius: 8px;
+  --control-radius: 10px;
   --button-secondary: #ffffff;
   --button-secondary-hover: #f1f1ef;
   --focus: #10a37f;
@@ -185,6 +192,8 @@ textarea::placeholder {
   --failed: #b42318;
   --skipped: #6d5bd0;
 
+  color-scheme: var(--color-scheme);
+  font-family: var(--font-ui);
   pointer-events: auto;
   position: relative;
   display: flex;
@@ -230,98 +239,220 @@ textarea::placeholder {
   --danger-text: #ffffff;
 }
 
-@media (prefers-color-scheme: dark) {
-  .queue-shell.theme-system {
-    --bg: #171717;
-    --surface: #212121;
-    --surface-soft: #2a2a2a;
-    --surface-hover: #303030;
-    --border: #343434;
-    --border-strong: #474747;
-    --text: #ececec;
-    --muted: #b4b4b4;
-    --muted-2: #8e8e8e;
-    --input: #1f1f1f;
-    --button: var(--provider-accent);
-    --button-hover: var(--provider-accent-hover);
-    --button-text: #ffffff;
-    --button-secondary: #242424;
-    --button-secondary-hover: #2f2f2f;
-    --focus: var(--provider-accent);
-    --focus-soft: var(--provider-accent-soft);
-    --error-bg: #341c1a;
-    --error-border: #7f3b35;
-    --error-text: #ffd2cc;
-    --warning-bg: #3a2c12;
-    --warning-bg-hover: #493816;
-    --warning-border: #80621b;
-    --warning-text: #ffe6a3;
-    --danger-bg: #d0443e;
-    --danger-bg-hover: #ea5a52;
-    --danger-border: #d0443e;
-    --danger-text: #ffffff;
-  }
-}
-
-.queue-shell.provider-chatgpt {
+.queue-shell.provider-chatgpt.theme-light {
+  --color-scheme: light;
+  --font-ui: "OpenAI Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --surface-soft: #f0f0ee;
+  --surface-hover: #ececea;
+  --border: #deded9;
+  --border-strong: #c8c8c2;
+  --text: #202123;
+  --muted: #6f6f6b;
+  --muted-2: #9a9a94;
+  --input: #ffffff;
+  --button: #202123;
+  --button-hover: #292a2d;
+  --button-border: transparent;
+  --button-hover-border: #10a37f;
+  --button-text: #ffffff;
+  --button-secondary: #ffffff;
+  --button-secondary-hover: #f1f1ef;
+  --button-radius: 8px;
+  --control-radius: 10px;
   --provider-accent: #10a37f;
   --provider-accent-hover: #0d8f70;
-  --provider-accent-soft: rgba(16, 163, 127, 0.14);
-  --provider-accent-border: rgba(16, 163, 127, 0.42);
+  --provider-accent-soft: rgba(16, 163, 127, 0.12);
+  --provider-accent-border: rgba(16, 163, 127, 0.38);
   --provider-accent-text: #047857;
   --focus: #10a37f;
   --focus-soft: rgba(16, 163, 127, 0.16);
+  --pending: #64748b;
   --running: #0f766e;
+  --done: #15803d;
+  --failed: #b42318;
+  --skipped: #6d5bd0;
 }
 
-.queue-shell.provider-gemini {
+.queue-shell.provider-chatgpt.theme-dark {
+  --color-scheme: dark;
+  --font-ui: "OpenAI Sans", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --bg: #171717;
+  --surface: #212121;
+  --surface-soft: #2a2a2a;
+  --surface-hover: #303030;
+  --border: #343434;
+  --border-strong: #474747;
+  --text: #ececec;
+  --muted: #b4b4b4;
+  --muted-2: #8e8e8e;
+  --input: #1f1f1f;
+  --button: #ececec;
+  --button-hover: #ffffff;
+  --button-border: transparent;
+  --button-hover-border: #7ee0c1;
+  --button-text: #171717;
+  --button-secondary: #242424;
+  --button-secondary-hover: #2f2f2f;
+  --button-radius: 8px;
+  --control-radius: 10px;
+  --provider-accent: #10a37f;
+  --provider-accent-hover: #7ee0c1;
+  --provider-accent-soft: rgba(16, 163, 127, 0.16);
+  --provider-accent-border: rgba(126, 224, 193, 0.34);
+  --provider-accent-text: #7ee0c1;
+  --focus: #7ee0c1;
+  --focus-soft: rgba(126, 224, 193, 0.16);
+  --pending: #94a3b8;
+  --running: #10a37f;
+  --done: #4ade80;
+  --failed: #f87171;
+  --skipped: #a78bfa;
+}
+
+.queue-shell.provider-gemini.theme-light {
+  --color-scheme: light;
+  --font-ui: "Google Sans", "Google Sans Text", Roboto, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --bg: #f3f6fb;
+  --surface: #ffffff;
+  --surface-soft: #eaf1fb;
+  --surface-hover: #e1ecfb;
+  --border: #d6dee9;
+  --border-strong: #bcc8d8;
+  --text: #1f1f1f;
+  --muted: #5f6368;
+  --muted-2: #8b9199;
+  --input: #ffffff;
+  --button: #1f1f1f;
+  --button-hover: #2b2d30;
+  --button-border: transparent;
+  --button-hover-border: #1a73e8;
+  --button-text: #ffffff;
+  --button-secondary: #ffffff;
+  --button-secondary-hover: #edf3fd;
+  --button-radius: 999px;
+  --control-radius: 18px;
   --provider-accent: #1a73e8;
   --provider-accent-hover: #1558b0;
-  --provider-accent-soft: rgba(26, 115, 232, 0.14);
-  --provider-accent-border: rgba(124, 77, 255, 0.42);
-  --provider-accent-text: #1d4ed8;
+  --provider-accent-soft: rgba(26, 115, 232, 0.12);
+  --provider-accent-border: rgba(124, 77, 255, 0.34);
+  --provider-accent-text: #1a5fd0;
   --focus: #7c4dff;
-  --focus-soft: rgba(124, 77, 255, 0.16);
-  --running: #2563eb;
+  --focus-soft: rgba(124, 77, 255, 0.14);
+  --pending: #5f6368;
+  --running: #1a73e8;
+  --done: #188038;
+  --failed: #b3261e;
   --skipped: #7c3aed;
 }
 
-.queue-shell.provider-claude {
-  --provider-accent: #c96442;
-  --provider-accent-hover: #a64d31;
-  --provider-accent-soft: rgba(201, 100, 66, 0.15);
-  --provider-accent-border: rgba(217, 119, 87, 0.46);
-  --provider-accent-text: #b45309;
+.queue-shell.provider-gemini.theme-dark {
+  --color-scheme: dark;
+  --font-ui: "Google Sans", "Google Sans Text", Roboto, Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --bg: #050505;
+  --surface: #111315;
+  --surface-soft: #1b1f24;
+  --surface-hover: #222831;
+  --border: #2b3036;
+  --border-strong: #3d4652;
+  --text: #e8eaed;
+  --muted: #bdc1c6;
+  --muted-2: #8f949b;
+  --input: #111315;
+  --button: #e8eaed;
+  --button-hover: #ffffff;
+  --button-border: transparent;
+  --button-hover-border: #8ab4f8;
+  --button-text: #111315;
+  --button-secondary: #171a1f;
+  --button-secondary-hover: #222831;
+  --button-radius: 999px;
+  --control-radius: 18px;
+  --provider-accent: #8ab4f8;
+  --provider-accent-hover: #a8c7fa;
+  --provider-accent-soft: rgba(138, 180, 248, 0.15);
+  --provider-accent-border: rgba(196, 181, 253, 0.32);
+  --provider-accent-text: #a8c7fa;
+  --focus: #c4b5fd;
+  --focus-soft: rgba(196, 181, 253, 0.14);
+  --pending: #9aa0a6;
+  --running: #8ab4f8;
+  --done: #81c995;
+  --failed: #f28b82;
+  --skipped: #c4b5fd;
+}
+
+.queue-shell.provider-claude.theme-light {
+  --color-scheme: light;
+  --font-ui: "Anthropic Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --bg: #f7f4ed;
+  --surface: #fffaf2;
+  --surface-soft: #eee9df;
+  --surface-hover: #e8e1d3;
+  --border: #ded7c8;
+  --border-strong: #c8beaa;
+  --text: #141413;
+  --muted: #6d675c;
+  --muted-2: #9c9485;
+  --input: #fffaf2;
+  --button: #141413;
+  --button-hover: #24231f;
+  --button-border: transparent;
+  --button-hover-border: #d97757;
+  --button-text: #faf9f5;
+  --button-secondary: #fffaf2;
+  --button-secondary-hover: #eee9df;
+  --button-radius: 10px;
+  --control-radius: 12px;
+  --provider-accent: #d97757;
+  --provider-accent-hover: #c96442;
+  --provider-accent-soft: rgba(217, 119, 87, 0.14);
+  --provider-accent-border: rgba(217, 119, 87, 0.42);
+  --provider-accent-text: #a7472c;
   --focus: #d97757;
   --focus-soft: rgba(217, 119, 87, 0.18);
+  --pending: #7c7468;
   --running: #b45309;
-  --skipped: #9f5f80;
+  --done: #788c5d;
+  --failed: #b42318;
+  --skipped: #6a9bcc;
 }
 
-.queue-shell.theme-dark.provider-chatgpt {
-  --provider-accent-text: #7ee0c1;
-}
-
-.queue-shell.theme-dark.provider-gemini {
-  --provider-accent-text: #93c5fd;
-}
-
-.queue-shell.theme-dark.provider-claude {
+.queue-shell.provider-claude.theme-dark {
+  --color-scheme: dark;
+  --font-ui: "Anthropic Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --bg: #141413;
+  --surface: #1f1e1b;
+  --surface-soft: #292721;
+  --surface-hover: #333029;
+  --border: #3b372e;
+  --border-strong: #544e42;
+  --text: #faf9f5;
+  --muted: #c8c2b6;
+  --muted-2: #9f9788;
+  --input: #1f1e1b;
+  --button: #faf9f5;
+  --button-hover: #ffffff;
+  --button-border: transparent;
+  --button-hover-border: #f0a98d;
+  --button-text: #141413;
+  --button-secondary: #24221e;
+  --button-secondary-hover: #333029;
+  --button-radius: 10px;
+  --control-radius: 12px;
+  --provider-accent: #f0a98d;
+  --provider-accent-hover: #ffc0a8;
+  --provider-accent-soft: rgba(240, 169, 141, 0.16);
+  --provider-accent-border: rgba(240, 169, 141, 0.36);
   --provider-accent-text: #f0a98d;
-}
-
-@media (prefers-color-scheme: dark) {
-  .queue-shell.theme-system.provider-chatgpt {
-    --provider-accent-text: #7ee0c1;
-  }
-
-  .queue-shell.theme-system.provider-gemini {
-    --provider-accent-text: #93c5fd;
-  }
-
-  .queue-shell.theme-system.provider-claude {
-    --provider-accent-text: #f0a98d;
-  }
+  --focus: #f0a98d;
+  --focus-soft: rgba(240, 169, 141, 0.18);
+  --pending: #aaa197;
+  --running: #f0a98d;
+  --done: #a6b985;
+  --failed: #f87171;
+  --skipped: #8fb3d9;
 }
 
 .queue-shell.collapsed {

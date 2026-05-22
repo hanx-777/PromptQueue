@@ -2,6 +2,8 @@ export type TaskStatus = "pending" | "running" | "done" | "failed" | "skipped";
 
 export type ProviderModelKey = "chatgpt" | "gemini" | "claude";
 
+export type QueueTheme = "page" | "light" | "dark";
+
 export type ModelPreferenceMode = "auto-highest" | "preset" | "custom";
 
 export interface ProviderModelPreference {
@@ -43,7 +45,7 @@ export interface QueueSettings {
   maxWaitMs: number;
   appendContextMode: boolean;
   batchSeparator: string;
-  theme: "light" | "dark" | "system";
+  theme: QueueTheme;
   language: "zh" | "en";
   providerModels: ProviderModelSettings;
   collapsed: boolean;

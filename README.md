@@ -27,7 +27,7 @@ This is not an OpenAI API project. It does not use an API key, backend service, 
 - Chinese / English UI toggle
 - Support tab with GitHub Star, Ko-fi, and local WeChat Pay donation QR code
 - Persistent queue, workflows, settings, collapsed state, language, and panel width via `chrome.storage.local`
-- Dark, light, and system theme modes
+- Dark, light, and follow-page theme modes
 - Keyboard shortcuts:
   - `Alt + Q`: collapse or expand the sidebar
   - `Alt + Shift + Enter`: add the current sidebar textarea content to the queue
@@ -105,7 +105,7 @@ PromptQueue 是一个本地运行的 Chrome / Edge Manifest V3 浏览器扩展�
 - 中英文界面切换
 - 支持页包含 GitHub Star、Ko-fi 和本地微信打赏码
 - 队列、工作流、设置、折叠状态、语言和面板宽度都保存在 `chrome.storage.local`
-- 支持浅色、深色、跟随系统主题
+- 支持浅色、深色、跟随网页主题
 - 快捷键：
   - `Alt + Q`：折叠或展开侧边栏
   - `Alt + Shift + Enter`：将当前侧边栏输入框内容加入队列

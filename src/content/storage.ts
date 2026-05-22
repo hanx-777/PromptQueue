@@ -14,7 +14,7 @@ export const DEFAULT_SETTINGS: QueueSettings = {
   maxWaitMs: 10 * 60 * 1000,
   appendContextMode: true,
   batchSeparator: "---",
-  theme: "system",
+  theme: "page",
   language: "zh",
   providerModels: DEFAULT_PROVIDER_MODELS,
   collapsed: false,
@@ -184,9 +184,11 @@ function normalizeSettings(value: unknown): QueueSettings {
     return { ...DEFAULT_SETTINGS };
   }
 
-  const theme = value.theme === "light" || value.theme === "dark" || value.theme === "system"
+  const theme = value.theme === "light" || value.theme === "dark" || value.theme === "page"
     ? value.theme
-    : DEFAULT_SETTINGS.theme;
+    : value.theme === "system"
+      ? "page"
+      : DEFAULT_SETTINGS.theme;
   const language = value.language === "zh" || value.language === "en"
     ? value.language
     : DEFAULT_SETTINGS.language;
