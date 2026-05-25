@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { getTexts, statusLabel, type Texts } from "../content/i18n";
+import { getTexts, type Texts } from "../content/i18n";
+import { detectProviderHardBusy, hasActiveQueue } from "../content/providerRuntime";
 import { QueueRunner } from "../content/queueRunner";
 import {
   DEFAULT_SETTINGS,
@@ -14,11 +15,13 @@ import {
 } from "../content/storage";
 import type { QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "../content/types";
 import { getCurrentProvider } from "../content/providers";
-import { clamp, createId } from "../utils/dom";
+import { clamp, createId, readEditableText } from "../utils/dom";
 import { getErrorMessage } from "../utils/logger";
 import { CollapseIcon, ExpandIcon, SettingsIcon } from "./Icons";
+import { NativeQueueDock } from "./NativeQueueDock";
 import { SettingsPanel } from "./SettingsPanel";
 import { SteerBox } from "./SteerBox";
+import { TaskItem } from "./TaskItem";
 import { WorkflowCard } from "./WorkflowCard";
 
 type PanelSection = "run" | "workflow" | "settings" | "support";
@@ -188,11 +191,6 @@ function getUniqueWorkflowName(name: string, workflows: QueueWorkflow[], exclude
   return candidate;
 }
 
-function previewPrompt(prompt: string): string {
-  const normalized = prompt.replace(/\s+/g, " ").trim();
-  return normalized.length > 72 ? `${normalized.slice(0, 72)}...` : normalized;
-}
-
 function getSections(texts: Texts): Array<{ id: PanelSection; label: string }> {
   return [
     { id: "run", label: texts.navRun },
@@ -217,6 +215,48 @@ function reorderWorkflows(workflows: QueueWorkflow[], draggedId: string, targetI
   const [dragged] = next.splice(draggedIndex, 1);
   next.splice(targetIndex, 0, dragged);
   return next;
+}
+
+function getVisibleQueueTasks(tasks: QueueTask[]): QueueTask[] {
+  return tasks.filter((task) => task.status !== "done");
+}
+
+function reorderTasks(tasks: QueueTask[], draggedId: string, targetId: string): QueueTask[] {
+  if (draggedId === targetId) {
+    return tasks;
+  }
+
+  const draggedIndex = tasks.findIndex((task) => task.id === draggedId);
+  const targetIndex = tasks.findIndex((task) => task.id === targetId);
+  const dragged = tasks[draggedIndex];
+  const target = tasks[targetIndex];
+  if (draggedIndex < 0 || targetIndex < 0 || dragged?.status !== "pending" || target?.status !== "pending") {
+    return tasks;
+  }
+
+  const next = [...tasks];
+  const [draggedTask] = next.splice(draggedIndex, 1);
+  next.splice(targetIndex, 0, { ...draggedTask, updatedAt: now() });
+  return next;
+}
+
+function movePendingTask(tasks: QueueTask[], id: string, direction: "up" | "down"): QueueTask[] {
+  const pendingTasks = tasks.filter((task) => task.status === "pending");
+  const pendingIndex = pendingTasks.findIndex((task) => task.id === id);
+  const target = pendingTasks[direction === "up" ? pendingIndex - 1 : pendingIndex + 1];
+  return target ? reorderTasks(tasks, id, target.id) : tasks;
+}
+
+function prioritizePendingTask(tasks: QueueTask[], id: string, currentTaskId?: string): QueueTask[] {
+  const target = tasks.find((task) => task.id === id);
+  if (!target || target.status !== "pending") {
+    return tasks;
+  }
+
+  return [
+    { ...target, updatedAt: now() },
+    ...tasks.filter((task) => task.id !== id && task.id !== currentTaskId)
+  ];
 }
 
 function detectThemeKeyword(value: string | null | undefined): ResolvedTheme | null {
@@ -303,13 +343,12 @@ export function QueuePanel(): JSX.Element {
   const [workflowNameDraft, setWorkflowNameDraft] = useState("");
   const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null);
   const [draggedWorkflowId, setDraggedWorkflowId] = useState<string | null>(null);
-  const [editingQueueTaskId, setEditingQueueTaskId] = useState<string | null>(null);
-  const [queueTaskDraft, setQueueTaskDraft] = useState("");
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [queueActionBusy, setQueueActionBusy] = useState(false);
   const [steerBusy, setSteerBusy] = useState(false);
   const [localMessage, setLocalMessage] = useState<string | null>(null);
   const [pageTheme, setPageTheme] = useState<ResolvedTheme>(() => detectPageTheme());
+  const [providerBusy, setProviderBusy] = useState(false);
   const runnerRef = useRef(new QueueRunner());
   const busyRef = useRef(false);
   const queueActionBusyRef = useRef(false);
@@ -317,6 +356,7 @@ export function QueuePanel(): JSX.Element {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const resizingRef = useRef(false);
   const draggedWorkflowIdRef = useRef<string | null>(null);
+  const draggedTaskIdRef = useRef<string | null>(null);
 
   const texts = useMemo(() => getTexts(settings.language), [settings.language]);
   const sections = useMemo(() => getSections(texts), [texts]);
@@ -348,6 +388,41 @@ export function QueuePanel(): JSX.Element {
       void refresh();
     });
   }, [refresh]);
+
+  useEffect(() => {
+    const syncProviderBusy = (): void => setProviderBusy(detectProviderHardBusy(provider));
+    let frameId: number | null = null;
+    const scheduleSync = (): void => {
+      if (frameId !== null) {
+        return;
+      }
+      frameId = window.requestAnimationFrame(() => {
+        frameId = null;
+        syncProviderBusy();
+      });
+    };
+
+    const observer = new MutationObserver(scheduleSync);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      childList: true,
+      subtree: true
+    });
+    window.addEventListener("resize", scheduleSync);
+    window.addEventListener("scroll", scheduleSync, true);
+    const intervalId = window.setInterval(syncProviderBusy, 700);
+    syncProviderBusy();
+
+    return () => {
+      observer.disconnect();
+      if (frameId !== null) {
+        window.cancelAnimationFrame(frameId);
+      }
+      window.removeEventListener("resize", scheduleSync);
+      window.removeEventListener("scroll", scheduleSync, true);
+      window.clearInterval(intervalId);
+    };
+  }, [provider]);
 
   useEffect(() => {
     const updatePageTheme = (): void => setPageTheme(detectPageTheme());
@@ -437,6 +512,15 @@ export function QueuePanel(): JSX.Element {
       });
   }, [handleBackgroundQueueError, refresh]);
 
+  const persistStateAndRunQueue = useCallback(async (nextState: QueueState): Promise<void> => {
+    await persistState({
+      ...nextState,
+      isRunning: true,
+      isPaused: false
+    });
+    runQueueInBackground();
+  }, [persistState, runQueueInBackground]);
+
   const runSteer = useCallback(async (action: () => Promise<void>) => {
     if (steerBusyRef.current) {
       return;
@@ -468,13 +552,40 @@ export function QueuePanel(): JSX.Element {
     }
 
     const latest = await loadState();
-    await persistState({
+    await persistStateAndRunQueue({
       ...latest,
       tasks: [...latest.tasks, ...prompts.map((prompt) => makeTask(prompt))],
       lastError: undefined
     });
     setPromptDraft("");
-  }, [persistState, promptDraft, settings.batchSeparator, settings.language]);
+  }, [persistStateAndRunQueue, promptDraft, settings.batchSeparator, settings.language]);
+
+  const addNativeComposerToQueue = useCallback(async () => {
+    const composer = provider.findComposer();
+    const prompts = splitPrompts(composer ? readEditableText(composer) : "", settings.batchSeparator);
+    if (!prompts.length) {
+      setLocalMessage(texts.emptyPrompt);
+      return;
+    }
+
+    const latest = await loadState();
+    const latestHasActiveQueue = hasActiveQueue(latest);
+    const pageIsBusy = detectProviderHardBusy(provider);
+    if (!pageIsBusy && !latest.isRunning && !latestHasActiveQueue) {
+      setLocalMessage(texts.nativeQueueUnavailable);
+      return;
+    }
+
+    await persistState({
+      ...latest,
+      tasks: [...latest.tasks, ...prompts.map((prompt) => makeTask(prompt))],
+      isRunning: true,
+      isPaused: false,
+      lastError: undefined
+    });
+    await provider.setComposerText("");
+    runQueueInBackground();
+  }, [persistState, provider, runQueueInBackground, settings.batchSeparator, texts.emptyPrompt, texts.nativeQueueUnavailable]);
 
   useEffect(() => {
     const toggleHandler = (): void => {
@@ -483,15 +594,21 @@ export function QueuePanel(): JSX.Element {
     const addHandler = (): void => {
       void addDraftToQueue();
     };
+    const addNativeHandler = (): void => {
+      void runBusy("add-native", addNativeComposerToQueue);
+    };
 
     window.addEventListener("gqs-toggle", toggleHandler);
     window.addEventListener("gqs-add", addHandler);
+    window.addEventListener("gqs-add-native", addNativeHandler);
     return () => {
       window.removeEventListener("gqs-toggle", toggleHandler);
       window.removeEventListener("gqs-add", addHandler);
+      window.removeEventListener("gqs-add-native", addNativeHandler);
     };
-  }, [addDraftToQueue, persistSettings, settings]);
+  }, [addDraftToQueue, addNativeComposerToQueue, persistSettings, runBusy, settings]);
 
+  const visibleQueueTasks = useMemo(() => getVisibleQueueTasks(state.tasks), [state.tasks]);
   const counters = useMemo(() => countByStatus(state.tasks), [state.tasks]);
   const runningIndex = state.currentTaskId
     ? state.tasks.findIndex((task) => task.id === state.currentTaskId) + 1
@@ -502,7 +619,7 @@ export function QueuePanel(): JSX.Element {
     : state.isRunning
       ? `${texts.running}${runningIndex ? ` #${runningIndex}` : ""}`
       : texts.idle;
-  const queuePrimaryLabel = state.isRunning && !state.isPaused ? texts.pause : texts.startQueue;
+  const queuePrimaryLabel = state.isPaused ? texts.resume : state.isRunning ? texts.pause : texts.startQueue;
 
   const updateTasks = async (tasks: QueueTask[], patch: Partial<QueueState> = {}): Promise<void> => {
     await persistState({
@@ -514,42 +631,86 @@ export function QueuePanel(): JSX.Element {
 
   const handleTaskEdit = (id: string, prompt: string): void => {
     void updateTasks(state.tasks.map((task) => (
-      task.id === id ? { ...task, prompt, updatedAt: now(), error: undefined } : task
+      task.id === id && task.status !== "running" ? { ...task, prompt, updatedAt: now(), error: undefined } : task
     )));
   };
 
   const handleTaskDelete = (id: string): void => {
+    const target = state.tasks.find((task) => task.id === id);
+    if (target?.status === "running") {
+      return;
+    }
+
     void updateTasks(state.tasks.filter((task) => task.id !== id), {
       currentTaskId: state.currentTaskId === id ? undefined : state.currentTaskId
     });
   };
 
-  const toggleTaskStatus = (task: QueueTask): void => {
-    if (task.status === "running") {
-      return;
+  const handleTaskMove = (id: string, direction: "up" | "down"): void => {
+    const nextTasks = movePendingTask(state.tasks, id, direction);
+    if (nextTasks !== state.tasks) {
+      void updateTasks(nextTasks);
     }
+  };
 
-    const nextStatus: TaskStatus = task.status === "pending" ? "done" : "pending";
-    void updateTasks(state.tasks.map((item) => (
-      item.id === task.id
-        ? { ...item, status: nextStatus, updatedAt: now(), error: undefined }
-        : item
+  const handleTaskMoveTop = (id: string): void => {
+    const firstPending = state.tasks.find((task) => task.status === "pending");
+    if (firstPending && firstPending.id !== id) {
+      void updateTasks(reorderTasks(state.tasks, id, firstPending.id));
+    }
+  };
+
+  const handleTaskSkip = (id: string): void => {
+    void updateTasks(state.tasks.map((task) => (
+      task.id === id && task.status === "pending"
+        ? { ...task, status: "skipped", updatedAt: now(), error: undefined }
+        : task
     )));
   };
 
-  const startQueueTaskEdit = (task: QueueTask): void => {
-    setEditingQueueTaskId(task.id);
-    setQueueTaskDraft(task.prompt);
+  const handleTaskRetry = (id: string): void => {
+    void runBusy("retry-task", () => runnerRef.current.retryTask(id));
   };
 
-  const saveQueueTaskEdit = (): void => {
-    const trimmed = queueTaskDraft.trim();
-    if (!editingQueueTaskId || !trimmed) {
+  const prioritizeTaskAndStopCurrent = async (id: string): Promise<void> => {
+    await runnerRef.current.stopCurrent({ suppressMissingStopError: true });
+    const latest = await loadState();
+    const target = latest.tasks.find((task) => task.id === id);
+    if (!target || target.status !== "pending") {
       return;
     }
-    handleTaskEdit(editingQueueTaskId, trimmed);
-    setEditingQueueTaskId(null);
-    setQueueTaskDraft("");
+
+    await persistState({
+      ...latest,
+      tasks: prioritizePendingTask(latest.tasks, id, latest.currentTaskId),
+      currentTaskId: undefined,
+      isRunning: true,
+      isPaused: false,
+      lastError: undefined
+    });
+    runQueueInBackground();
+  };
+
+  const handleNativeTaskSteer = (id: string): void => {
+    void runSteer(() => prioritizeTaskAndStopCurrent(id));
+  };
+
+  const handleTaskDragStart = (id: string): void => {
+    const task = state.tasks.find((item) => item.id === id);
+    draggedTaskIdRef.current = task?.status === "pending" ? id : null;
+  };
+
+  const handleTaskDrop = (targetId: string): void => {
+    const draggedId = draggedTaskIdRef.current;
+    draggedTaskIdRef.current = null;
+    if (!draggedId) {
+      return;
+    }
+
+    const nextTasks = reorderTasks(state.tasks, draggedId, targetId);
+    if (nextTasks !== state.tasks) {
+      void updateTasks(nextTasks);
+    }
   };
 
   const insertSteerTask = async (prompt: string, clearError = true): Promise<void> => {
@@ -565,17 +726,17 @@ export function QueuePanel(): JSX.Element {
         : latest.tasks.length;
     const nextTasks = [...latest.tasks];
     nextTasks.splice(insertAt, 0, makeTask(prompt));
-    await persistState({ ...latest, tasks: nextTasks, lastError: clearError ? undefined : latest.lastError });
+    await persistStateAndRunQueue({
+      ...latest,
+      tasks: nextTasks,
+      lastError: clearError ? undefined : latest.lastError
+    });
   };
 
   const stopAndSteer = async (prompt: string): Promise<void> => {
     await runSteer(async () => {
       await runnerRef.current.stopCurrent();
       await insertSteerTask(prompt, false);
-      const latest = await loadState();
-      if (latest.isRunning && !latest.currentTaskId && !latest.isPaused) {
-        runQueueInBackground();
-      }
     });
   };
 
@@ -675,7 +836,8 @@ export function QueuePanel(): JSX.Element {
   };
 
   const saveCurrentQueueAsWorkflow = async (): Promise<void> => {
-    if (!state.tasks.length) {
+    const workflowTasks = getVisibleQueueTasks(state.tasks);
+    if (!workflowTasks.length) {
       throw new Error(texts.workflowSaveEmpty);
     }
 
@@ -686,7 +848,7 @@ export function QueuePanel(): JSX.Element {
 
     const latestWorkflows = await loadWorkflows();
     const name = getUniqueWorkflowName(trimmedName, latestWorkflows);
-    const workflow = makeWorkflow(name, queueMessagesFromTasks(state.tasks));
+    const workflow = makeWorkflow(name, queueMessagesFromTasks(workflowTasks));
     await persistWorkflows([...latestWorkflows, workflow]);
     setWorkflowNameDraft("");
     setSaveWorkflowOpen(false);
@@ -758,17 +920,14 @@ export function QueuePanel(): JSX.Element {
       throw new Error(texts.workflowRunBlocked);
     }
 
-    await saveState({
+    await persistStateAndRunQueue({
       ...latest,
       tasks: tasksFromWorkflow(workflow),
-      isRunning: false,
-      isPaused: false,
       currentTaskId: undefined,
       lastError: undefined
     });
     setActiveSection("run");
     setExpandedWorkflowId(null);
-    await runnerRef.current.start();
   };
 
   const exportWorkflowById = (id: string): void => {
@@ -829,30 +988,61 @@ export function QueuePanel(): JSX.Element {
     }
   };
 
+  const nativeQueueDock = (
+    <NativeQueueDock
+      provider={provider}
+      providerClass={providerClass}
+      theme={theme}
+      state={state}
+      texts={texts}
+      providerBusy={providerBusy}
+      onEdit={handleTaskEdit}
+      onDelete={handleTaskDelete}
+      onSteer={handleNativeTaskSteer}
+      onDragStart={handleTaskDragStart}
+      onDropOn={handleTaskDrop}
+      onDragEnd={() => {
+        draggedTaskIdRef.current = null;
+      }}
+    />
+  );
+
   if (settings.collapsed) {
     return (
-      <aside className={`queue-shell collapsed theme-${theme} ${providerClass}`} style={{ width: 44 }}>
-        <button
-          type="button"
-          className="collapse-tab"
-          onClick={() => void persistSettings({ ...settings, collapsed: false })}
-          aria-label={texts.expandPanel}
-          title={`${texts.expandPanel} (Alt+Q)`}
-        >
-          <ExpandIcon />
-          <span>PQ</span>
-        </button>
-      </aside>
+      <>
+        {nativeQueueDock}
+        <aside className={`queue-shell collapsed theme-${theme} ${providerClass}`} style={{ width: 44 }}>
+          <button
+            type="button"
+            className="collapse-tab"
+            onClick={() => void persistSettings({ ...settings, collapsed: false })}
+            aria-label={texts.expandPanel}
+            title={`${texts.expandPanel} (Alt+Q)`}
+          >
+            <ExpandIcon />
+            <span>PQ</span>
+          </button>
+        </aside>
+      </>
     );
   }
 
   return (
-    <aside
-      className={`queue-shell theme-${theme} ${providerClass}`}
-      style={{ width: settings.panelWidth }}
-      aria-label="PromptQueue panel"
-    >
-      <div className="resize-handle" onMouseDown={startResize} title="Resize panel" />
+    <>
+      {nativeQueueDock}
+      <aside
+        className={`queue-shell theme-${theme} ${providerClass}`}
+        style={{ width: settings.panelWidth }}
+        aria-label={texts.appTitle}
+      >
+      <div
+        className="resize-handle"
+        onMouseDown={startResize}
+        title={texts.resizePanel}
+        role="separator"
+        aria-orientation="vertical"
+        aria-label={texts.resizePanel}
+      />
 
       <header className="panel-header">
         <div className="header-brand">
@@ -945,170 +1135,130 @@ export function QueuePanel(): JSX.Element {
       <main className="panel-body">
         {activeSection === "run" ? (
           <section className="panel-section run-section" aria-label={texts.navRun}>
-            <section className="add-box" aria-label={texts.addQueuePrompt}>
-              <div className="section-title-row compact">
-                <h2>{texts.addPromptLabel}</h2>
-              </div>
-              <textarea
-                value={promptDraft}
-                onChange={(event) => setPromptDraft(event.target.value)}
-                placeholder={texts.addPlaceholder}
-                rows={5}
-              />
-              <button
-                type="button"
-                onClick={() => void runBusy("add", addDraftToQueue)}
-                disabled={Boolean(busyAction) || !promptDraft.trim()}
-              >
-                {texts.addToQueue}
-              </button>
-            </section>
-
-            <SteerBox
-              settings={settings}
-              texts={texts}
-              busy={steerBusy}
-              onSettingsChange={(nextSettings) => void persistSettings(nextSettings)}
-              onInsertNext={(prompt) => runSteer(() => insertSteerTask(prompt))}
-              onStopAndSteer={stopAndSteer}
-            />
-
-            <section className="controls" aria-label={texts.controls}>
-              <div className="section-title-row compact">
-                <h2>{texts.controls}</h2>
-              </div>
-              <div className="control-grid compact-controls">
-                <button
-                  type="button"
-                  onClick={handleQueuePrimaryClick}
-                  disabled={queueActionBusy || (!state.isRunning && (counters.pending === 0)) || (state.isPaused && counters.pending === 0 && !state.currentTaskId)}
-                >
-                  {queuePrimaryLabel}
-                </button>
-                <button
-                  type="button"
-                  className="danger"
-                  onClick={() => void persistState({ ...DEFAULT_STATE })}
-                  disabled={!state.tasks.length || state.currentTaskId !== undefined || (state.isRunning && !state.isPaused)}
-                >
-                  {texts.clearAll}
-                </button>
-              </div>
-            </section>
-
-            <section className="save-workflow-box" aria-label={texts.saveAsWorkflow}>
-              <div className="section-title-row compact">
-                <h2>{texts.saveAsWorkflow}</h2>
-                <button
-                  type="button"
-                  className="secondary mini-action"
-                  onClick={() => setSaveWorkflowOpen((value) => !value)}
-                  disabled={!state.tasks.length}
-                >
-                  {saveWorkflowOpen ? texts.cancel : texts.saveAsWorkflow}
-                </button>
-              </div>
-              {saveWorkflowOpen ? (
-                <div className="save-workflow-form">
-                  <input
-                    value={workflowNameDraft}
-                    onChange={(event) => setWorkflowNameDraft(event.target.value)}
-                    placeholder={texts.workflowNamePlaceholder}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void runBusy("save-workflow", saveCurrentQueueAsWorkflow)}
-                    disabled={Boolean(busyAction) || !workflowNameDraft.trim() || !state.tasks.length}
-                  >
-                    {texts.save}
-                  </button>
-                </div>
-              ) : (
-                <p className="helper-text">{texts.saveWorkflowHint}</p>
-              )}
-            </section>
-
-            <section className="queue-messages-preview" aria-label={texts.queueMessages}>
+            <section className="queue-messages-preview run-queue-list" aria-label={texts.queueMessages}>
               <div className="section-title-row compact">
                 <h2>{texts.queueMessages}</h2>
                 <button
                   type="button"
                   className="secondary mini-action"
                   onClick={() => setActiveSection("workflow")}
-                  disabled={!state.tasks.length}
+                  disabled={!visibleQueueTasks.length}
                 >
                   {texts.manageWorkflow}
                 </button>
               </div>
-              {state.tasks.length ? (
-                <ol className="queue-message-list">
-                  {state.tasks.map((task, index) => (
-                    <li key={task.id} className={`queue-message-row queue-message-${task.status}`}>
-                      <div className="queue-message-main">
-                        <div className="queue-message-meta">
-                          <span className="queue-message-index">#{index + 1}</span>
-                          <button
-                            type="button"
-                            className={`status-chip status-${task.status} status-toggle`}
-                            onClick={() => toggleTaskStatus(task)}
-                            disabled={task.status === "running"}
-                            title={texts.toggleTaskStatus}
-                          >
-                            {statusLabel(task.status, texts)}
-                          </button>
-                        </div>
-                        {editingQueueTaskId === task.id ? (
-                          <div className="queue-message-edit">
-                            <textarea
-                              value={queueTaskDraft}
-                              onChange={(event) => setQueueTaskDraft(event.target.value)}
-                              rows={2}
-                            />
-                            <div className="task-actions">
-                              <button type="button" onClick={saveQueueTaskEdit} disabled={!queueTaskDraft.trim()}>
-                                {texts.save}
-                              </button>
-                              <button
-                                type="button"
-                                className="secondary"
-                                onClick={() => {
-                                  setEditingQueueTaskId(null);
-                                  setQueueTaskDraft("");
-                                }}
-                              >
-                                {texts.cancel}
-                              </button>
-                            </div>
-                          </div>
-                        ) : (
-                          <p>{previewPrompt(task.prompt)}</p>
-                        )}
-                      </div>
-                      <div className="queue-message-actions">
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => startQueueTaskEdit(task)}
-                          disabled={task.status === "running"}
-                        >
-                          {texts.edit}
-                        </button>
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => handleTaskDelete(task.id)}
-                          disabled={task.status === "running"}
-                        >
-                          {texts.delete}
-                        </button>
-                      </div>
-                    </li>
+              {visibleQueueTasks.length ? (
+                <div className="queue-task-list">
+                  {visibleQueueTasks.map((task, index) => (
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      index={index}
+                      total={visibleQueueTasks.length}
+                      texts={texts}
+                      onEdit={handleTaskEdit}
+                      onDelete={handleTaskDelete}
+                      onMove={handleTaskMove}
+                      onMoveTop={handleTaskMoveTop}
+                      onSkip={handleTaskSkip}
+                      onRetry={handleTaskRetry}
+                      onDragStart={handleTaskDragStart}
+                      onDropOn={handleTaskDrop}
+                      onDragEnd={() => {
+                        draggedTaskIdRef.current = null;
+                      }}
+                    />
                   ))}
-                </ol>
+                </div>
               ) : (
                 <div className="empty-state compact-empty">{texts.queueMessagesEmpty}</div>
               )}
             </section>
+
+            <div className="run-bottom-stack">
+              <SteerBox
+                settings={settings}
+                texts={texts}
+                busy={steerBusy}
+                onSettingsChange={(nextSettings) => void persistSettings(nextSettings)}
+                onInsertNext={(prompt) => runSteer(() => insertSteerTask(prompt))}
+                onStopAndSteer={stopAndSteer}
+              />
+
+              <section className="controls" aria-label={texts.controls}>
+                <div className="section-title-row compact">
+                  <h2>{texts.controls}</h2>
+                </div>
+                <div className="control-grid compact-controls">
+                  <button
+                    type="button"
+                    onClick={handleQueuePrimaryClick}
+                    disabled={queueActionBusy || (!state.isRunning && (counters.pending === 0)) || (state.isPaused && counters.pending === 0 && !state.currentTaskId)}
+                  >
+                    {queuePrimaryLabel}
+                  </button>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={() => void persistState({ ...DEFAULT_STATE })}
+                    disabled={!state.tasks.length || state.currentTaskId !== undefined || (state.isRunning && !state.isPaused)}
+                  >
+                    {texts.clearAll}
+                  </button>
+                </div>
+              </section>
+
+              <section className="save-workflow-box" aria-label={texts.saveAsWorkflow}>
+                <div className="section-title-row compact">
+                  <h2>{texts.saveAsWorkflow}</h2>
+                  <button
+                    type="button"
+                    className="secondary mini-action"
+                    onClick={() => setSaveWorkflowOpen((value) => !value)}
+                    disabled={!visibleQueueTasks.length}
+                  >
+                    {saveWorkflowOpen ? texts.cancel : texts.saveAsWorkflow}
+                  </button>
+                </div>
+                {saveWorkflowOpen ? (
+                  <div className="save-workflow-form">
+                    <input
+                      value={workflowNameDraft}
+                      onChange={(event) => setWorkflowNameDraft(event.target.value)}
+                      placeholder={texts.workflowNamePlaceholder}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void runBusy("save-workflow", saveCurrentQueueAsWorkflow)}
+                      disabled={Boolean(busyAction) || !workflowNameDraft.trim() || !visibleQueueTasks.length}
+                    >
+                      {texts.save}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="helper-text">{texts.saveWorkflowHint}</p>
+                )}
+              </section>
+
+              <section className="add-box run-composer-box" aria-label={texts.addQueuePrompt}>
+                <div className="section-title-row compact">
+                  <h2>{texts.addPromptLabel}</h2>
+                </div>
+                <textarea
+                  value={promptDraft}
+                  onChange={(event) => setPromptDraft(event.target.value)}
+                  placeholder={texts.addPlaceholder}
+                  rows={4}
+                />
+                <button
+                  type="button"
+                  onClick={() => void runBusy("add", addDraftToQueue)}
+                  disabled={Boolean(busyAction) || !promptDraft.trim()}
+                >
+                  {texts.addToQueue}
+                </button>
+              </section>
+            </div>
           </section>
         ) : null}
 
@@ -1208,6 +1358,7 @@ export function QueuePanel(): JSX.Element {
           }}
         />
       </main>
-    </aside>
+      </aside>
+    </>
   );
 }

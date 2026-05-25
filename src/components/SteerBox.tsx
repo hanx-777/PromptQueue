@@ -2,8 +2,6 @@ import { useState } from "react";
 import type { Texts } from "../content/i18n";
 import type { QueueSettings } from "../content/types";
 
-const APPEND_PREFIX = "请基于你刚才的回答继续调整：";
-
 interface SteerBoxProps {
   settings: QueueSettings;
   texts: Texts;
@@ -28,7 +26,7 @@ export function SteerBox({
     if (!trimmed) {
       return "";
     }
-    return settings.appendContextMode ? `${APPEND_PREFIX}\n\n${trimmed}` : trimmed;
+    return settings.appendContextMode ? `${texts.steerAppendPrefix}\n\n${trimmed}` : trimmed;
   };
 
   const insert = async (): Promise<void> => {

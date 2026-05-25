@@ -11,6 +11,7 @@ export interface ProviderGenerationSnapshot {
   composerReady: boolean;
   sendReady: boolean;
   stopButtonVisible: boolean;
+  structuredBusyIndicators: number;
   generatingIndicators: number;
   pendingMedia: boolean;
   assistantSignature: string;
@@ -23,6 +24,7 @@ export interface ProviderAdapter {
   label: string;
   hostnames: string[];
   findComposer(): HTMLElement | null;
+  findComposerAnchor(): HTMLElement | null;
   findSendButton(): HTMLButtonElement | null;
   findStopButton(): HTMLButtonElement | null;
   setComposerText(text: string): Promise<void>;

@@ -49,3 +49,23 @@ export function createId(): string {
   }
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 }
+
+export function previewPrompt(prompt: string, maxLen = 72): string {
+  const normalized = prompt.replace(/\s+/g, " ").trim();
+  return normalized.length > maxLen ? `${normalized.slice(0, maxLen)}...` : normalized;
+}
+
+export function readEditableText(element: HTMLElement): string {
+  if (element instanceof HTMLTextAreaElement || element instanceof HTMLInputElement) {
+    return element.value;
+  }
+
+  if (element.isContentEditable || element.getAttribute("contenteditable") === "true" || element.getAttribute("role") === "textbox") {
+    return element.innerText ?? element.textContent ?? "";
+  }
+
+  const nested = element.querySelector<HTMLElement>(
+    "textarea, input, div[contenteditable='true'], [contenteditable='true'], [role='textbox']"
+  );
+  return nested ? readEditableText(nested) : "";
+}

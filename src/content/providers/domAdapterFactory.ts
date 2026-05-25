@@ -28,11 +28,26 @@ interface DomProviderConfig {
   sendError: string;
 }
 
+const HARD_BUSY_SELECTORS = ["[data-is-streaming='true']"];
+
 function queryAll<T extends Element>(selector: string, root: ParentNode = document): T[] {
   try {
     return Array.from(root.querySelectorAll<T>(selector));
   } catch {
     return [];
+  }
+}
+
+function querySelfAndDescendants<T extends Element>(selector: string, root: ParentNode = document): T[] {
+  const descendants = queryAll<T>(selector, root);
+  if (!(root instanceof Element)) {
+    return descendants;
+  }
+
+  try {
+    return root.matches(selector) ? [root as T, ...descendants] : descendants;
+  } catch {
+    return descendants;
   }
 }
 
@@ -54,6 +69,21 @@ function textHaystack(element: Element): string {
 function includesAny(element: Element, words: string[]): boolean {
   const haystack = textHaystack(element);
   return words.some((word) => haystack.includes(word.toLowerCase()));
+}
+
+function matchesAnySelector(element: Element, selectors: string[]): boolean {
+  return selectors.some((selector) => {
+    try {
+      return element.matches(selector);
+    } catch {
+      return false;
+    }
+  });
+}
+
+function isInViewport(element: HTMLElement): boolean {
+  const rect = element.getBoundingClientRect();
+  return rect.bottom > 0 && rect.top < window.innerHeight && rect.right > 0 && rect.left < window.innerWidth;
 }
 
 function normalizedText(element: Element): string {
@@ -239,12 +269,62 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     return fallbackCandidates.sort((a, b) => scoreSendButton(b, composer, config) - scoreSendButton(a, composer, config))[0] ?? null;
   }
 
+  function findComposerAnchor(): HTMLElement | null {
+    const composer = findComposer();
+    if (!composer) {
+      return null;
+    }
+
+    const form = composer.closest("form");
+    if (form instanceof HTMLElement && isVisible(form)) {
+      return form;
+    }
+
+    let current = composer.parentElement;
+    const composerRect = composer.getBoundingClientRect();
+    for (let depth = 0; current && depth < 6; depth += 1) {
+      if (isVisible(current)) {
+        const rect = current.getBoundingClientRect();
+        if (rect.width >= composerRect.width && rect.height >= composerRect.height) {
+          return current;
+        }
+      }
+      current = current.parentElement;
+    }
+
+    return composer;
+  }
+
   function findStopButton(): HTMLButtonElement | null {
+    const composer = findComposer();
+    const anchor = findComposerAnchor();
+    const composerForm = composer?.closest("form") ?? null;
+    const assistantRoot = findLastAssistantContentRoot();
+    const scopedButtons = uniqueElements([
+      ...(anchor ? queryAll<HTMLButtonElement>("button", anchor) : []),
+      ...(composerForm ? queryAll<HTMLButtonElement>("button", composerForm) : [])
+    ]);
     const selectorButtons = config.stopButtonSelectors.flatMap((selector) => queryAll<HTMLButtonElement>(selector));
-    const allButtons = queryAll<HTMLButtonElement>("button");
-    const candidates = uniqueElements([...selectorButtons, ...allButtons])
-      .filter((button) => isVisible(button) && button.getAttribute("aria-disabled") !== "true")
-      .filter((button) => includesAny(button, config.stopPositiveWords));
+    const candidates = uniqueElements([...scopedButtons, ...selectorButtons])
+      .filter(isEnabledButton)
+      .filter((button) => includesAny(button, config.stopPositiveWords))
+      .filter((button) => {
+        const isNearComposer = Boolean(
+          (anchor && anchor.contains(button)) ||
+          (composerForm && composerForm.contains(button))
+        );
+        if (isNearComposer) {
+          return true;
+        }
+
+        const isExplicitStop = matchesAnySelector(button, config.stopButtonSelectors);
+        const assistantIsStreaming = Boolean(
+          assistantRoot &&
+          assistantRoot.contains(button) &&
+          countStructuredBusyIndicators(assistantRoot) > 0
+        );
+        return (isExplicitStop && isInViewport(button) && button.getBoundingClientRect().top > window.innerHeight * 0.35) || assistantIsStreaming;
+      });
 
     return candidates[0] ?? null;
   }
@@ -358,13 +438,27 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
       .length;
   }
 
-  function hasPendingMediaGeneration(): boolean {
-    const selectorMatches = config.pendingMediaSelectors.flatMap((selector) => queryAll<HTMLElement>(selector));
-    const textMatches = queryAll<HTMLElement>(
-      "[aria-label], [title], [data-testid], [data-test-id], [role='status'], [aria-live]"
-    ).filter((element) => includesAny(element, config.pendingMediaWords));
+  function countStructuredBusyIndicators(root: HTMLElement | null): number {
+    const scope = root ?? findMainArea();
+    const selectorMatches = HARD_BUSY_SELECTORS.flatMap((selector) =>
+      querySelfAndDescendants<HTMLElement>(selector, scope)
+    );
 
-    return uniqueElements([...selectorMatches, ...textMatches])
+    return uniqueElements(selectorMatches)
+      .filter((element) => isVisible(element))
+      .length;
+  }
+
+  function hasPendingMediaGeneration(root: HTMLElement | null): boolean {
+    if (!root) {
+      return false;
+    }
+
+    const selectorMatches = config.pendingMediaSelectors.flatMap((selector) =>
+      querySelfAndDescendants<HTMLElement>(selector, root)
+    );
+
+    return uniqueElements(selectorMatches)
       .some((element) => isVisible(element));
   }
 
@@ -375,14 +469,15 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     const assistantRoot = findLastAssistantContentRoot();
     const assistantText = assistantRoot?.innerText?.replace(/\s+/g, " ").trim() ?? "";
     const mediaCount = assistantRoot?.querySelectorAll("img, picture, video, canvas, svg").length ?? 0;
-    const busyCount = assistantRoot?.querySelectorAll("[aria-busy='true'], progress, [role='progressbar']").length ?? 0;
+    const structuredBusyIndicators = countStructuredBusyIndicators(assistantRoot);
 
     return {
       composerReady: isComposerReadyElement(composer),
       sendReady: Boolean(sendButton && isEnabledButton(sendButton)),
       stopButtonVisible: Boolean(stopButton),
-      generatingIndicators: countGeneratingIndicators() + busyCount,
-      pendingMedia: hasPendingMediaGeneration(),
+      structuredBusyIndicators,
+      generatingIndicators: countGeneratingIndicators(),
+      pendingMedia: hasPendingMediaGeneration(assistantRoot),
       assistantSignature: `${assistantText.length}:${mediaCount}:${assistantRoot?.textContent?.length ?? 0}`,
       assistantTextLength: assistantText.length,
       assistantMediaCount: mediaCount
@@ -432,6 +527,7 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     label: config.label,
     hostnames: config.hostnames,
     findComposer,
+    findComposerAnchor,
     findSendButton,
     findStopButton,
     setComposerText,

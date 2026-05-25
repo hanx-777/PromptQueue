@@ -1,7 +1,7 @@
 import { useEffect, useState, type DragEvent } from "react";
 import type { Texts } from "../content/i18n";
 import type { QueueWorkflow, WorkflowMessage } from "../content/types";
-import { createId } from "../utils/dom";
+import { createId, previewPrompt } from "../utils/dom";
 import { CloseIcon, GripIcon } from "./Icons";
 
 interface WorkflowCardProps {
@@ -32,11 +32,6 @@ function makeWorkflowMessage(prompt: string): WorkflowMessage {
     createdAt: timestamp,
     updatedAt: timestamp
   };
-}
-
-function previewPrompt(prompt: string): string {
-  const normalized = prompt.replace(/\s+/g, " ").trim();
-  return normalized.length > 84 ? `${normalized.slice(0, 84)}...` : normalized;
 }
 
 function reorderMessages(messages: WorkflowMessage[], draggedId: string, targetId: string): WorkflowMessage[] {
@@ -296,7 +291,7 @@ export function WorkflowCard({
                       </div>
                     </div>
                   ) : (
-                    <p>{previewPrompt(message.prompt)}</p>
+                    <p>{previewPrompt(message.prompt, 84)}</p>
                   )}
 
                   <div className="task-actions task-actions-wrap">

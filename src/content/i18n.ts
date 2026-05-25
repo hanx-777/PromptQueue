@@ -25,9 +25,11 @@ const zh = {
   emptyPrompt: "\u8bf7\u5148\u8f93\u5165\u81f3\u5c11\u4e00\u6761 prompt\u3002",
   steerTitle: "Steer",
   steerPlaceholder: "\u8f93\u5165\u4e0b\u4e00\u8f6e\u4e34\u65f6\u8c03\u6574\u6307\u4ee4...",
+  steerAppendPrefix: "\u8bf7\u57fa\u4e8e\u4f60\u521a\u624d\u7684\u56de\u7b54\u7ee7\u7eed\u8c03\u6574\uff1a",
   appendContext: "\u8ffd\u52a0\u4e0a\u4e0b\u6587",
   insertAsNext: "\u4ec5\u63d2\u5230\u4e0b\u6761",
   stopAndSteer: "\u4e2d\u65ad\u5e76 Steer",
+  prioritizeSteer: "\u63d2\u961f",
   controls: "\u63a7\u5236",
   startQueue: "\u5f00\u59cb",
   pause: "\u6682\u505c",
@@ -64,6 +66,12 @@ const zh = {
   workflowRunBlocked: "\u5f53\u524d\u961f\u5217\u6b63\u5728\u8fd0\u884c\uff0c\u8bf7\u5148\u6682\u505c\u6216\u6e05\u7a7a\u5f53\u524d\u961f\u5217\u3002",
   queueMessages: "\u961f\u5217\u6d88\u606f",
   queueMessagesEmpty: "\u8fd8\u6ca1\u6709\u961f\u5217\u6d88\u606f\u3002",
+  nativeQueueDockLabel: "\u539f\u751f\u8f93\u5165\u6846\u961f\u5217\u6d6e\u5c42",
+  addNativeInputToQueue: "\u52a0\u5165\u961f\u5217",
+  currentlyRunningQueue: "\u6b63\u5728\u6267\u884c\u961f\u5217",
+  waitingForCurrentReply: "\u7b49\u5f85\u5f53\u524d\u56de\u590d\u5b8c\u6210",
+  queueAfterCurrentReply: "\u5f53\u524d\u56de\u590d\u7ed3\u675f\u540e\u53d1\u9001",
+  nativeQueueUnavailable: "\u5f53\u524d\u6ca1\u6709\u6b63\u5728\u5904\u7406\u7684\u6d88\u606f\uff0c\u53ef\u4ee5\u76f4\u63a5\u7528\u7f51\u9875\u8f93\u5165\u6846\u53d1\u9001\u3002",
   manageWorkflow: "\u7f16\u6392\u5de5\u4f5c\u6d41",
   tasks: "\u4efb\u52a1",
   emptyState: "\u8fd8\u6ca1\u6709\u961f\u5217\u4efb\u52a1\u3002",
@@ -121,7 +129,11 @@ const zh = {
   up: "\u4e0a\u79fb",
   down: "\u4e0b\u79fb",
   skip: "\u8df3\u8fc7",
-  retry: "\u91cd\u8bd5"
+  retry: "\u91cd\u8bd5",
+  resizePanel: "\u62d6\u52a8\u8c03\u6574\u5bbd\u5ea6",
+  errorTitle: "PromptQueue \u51fa\u9519\u4e86",
+  errorFallbackMessage: "\u51fa\u73b0\u4e86\u672a\u77e5\u9519\u8bef\u3002",
+  errorRetry: "\u91cd\u8bd5"
 };
 
 const en: typeof zh = {
@@ -147,9 +159,11 @@ const en: typeof zh = {
   emptyPrompt: "Enter at least one prompt before adding to the queue.",
   steerTitle: "Steer",
   steerPlaceholder: "Steer the next turn...",
+  steerAppendPrefix: "Continue from your previous reply and adjust: ",
   appendContext: "Append context",
   insertAsNext: "Queue Next Only",
   stopAndSteer: "Interrupt & Steer",
+  prioritizeSteer: "Steer",
   controls: "Controls",
   startQueue: "Start",
   pause: "Pause",
@@ -186,6 +200,12 @@ const en: typeof zh = {
   workflowRunBlocked: "The current queue is running. Pause or clear it before running a workflow.",
   queueMessages: "Queue Messages",
   queueMessagesEmpty: "No queue messages yet.",
+  nativeQueueDockLabel: "Native composer queue dock",
+  addNativeInputToQueue: "Queue Input",
+  currentlyRunningQueue: "Queue running",
+  waitingForCurrentReply: "Waiting for current reply",
+  queueAfterCurrentReply: "Sends after current reply",
+  nativeQueueUnavailable: "No message is currently processing. You can send directly from the page composer.",
   manageWorkflow: "Manage Workflow",
   tasks: "Tasks",
   emptyState: "No queued prompts yet.",
@@ -243,7 +263,11 @@ const en: typeof zh = {
   up: "Up",
   down: "Down",
   skip: "Skip",
-  retry: "Retry"
+  retry: "Retry",
+  resizePanel: "Drag to resize panel",
+  errorTitle: "PromptQueue encountered an error.",
+  errorFallbackMessage: "Something went wrong.",
+  errorRetry: "Retry"
 };
 
 export type Texts = typeof zh;

@@ -1,10 +1,11 @@
 import { clickSend, clickStop, setComposerText } from "./chatgptDom";
 import { getProviderModelPreference } from "./modelSettings";
+import { detectProviderHardBusy } from "./providerRuntime";
 import { getCurrentProvider, getCurrentProviderLabel } from "./providers";
 import { ReplyWatcher } from "./replyWatcher";
 import { loadSettings, loadState, saveState } from "./storage";
 import type { QueueState, QueueTask } from "./types";
-import { getErrorMessage } from "../utils/logger";
+import { getErrorMessage, logWarn } from "../utils/logger";
 
 function now(): number {
   return Date.now();
@@ -41,7 +42,9 @@ export class QueueRunner {
         ...state,
         isPaused: true
       });
-    })();
+    })().catch((error) => {
+      logWarn("Failed to pause queue:", getErrorMessage(error));
+    });
   }
 
   async resume(): Promise<void> {
@@ -56,7 +59,7 @@ export class QueueRunner {
     return this.runNext();
   }
 
-  async stopCurrent(): Promise<void> {
+  async stopCurrent(options: { suppressMissingStopError?: boolean } = {}): Promise<void> {
     if (this.stopping) {
       return;
     }
@@ -66,10 +69,12 @@ export class QueueRunner {
       const stopped = await clickStop();
       const state = await loadState();
       if (!stopped) {
-        await saveState({
-          ...state,
-          lastError: `Stop button was not found. ${getCurrentProviderLabel()} may not be generating right now.`
-        });
+        if (!options.suppressMissingStopError) {
+          await saveState({
+            ...state,
+            lastError: `Stop button was not found. ${getCurrentProviderLabel()} may not be generating right now.`
+          });
+        }
       } else {
         await saveState({
           ...state,
@@ -103,13 +108,12 @@ export class QueueRunner {
         error: undefined,
         resultSummary: undefined
       }),
+      isRunning: true,
+      isPaused: false,
       lastError: undefined
     });
 
-    const latest = await loadState();
-    if (latest.isRunning && !latest.isPaused) {
-      await this.runNext();
-    }
+    await this.runNext();
   }
 
   skipTask(id: string): void {
@@ -123,7 +127,9 @@ export class QueueRunner {
         }),
         currentTaskId: state.currentTaskId === id ? undefined : state.currentTaskId
       });
-    })();
+    })().catch((error) => {
+      logWarn("Failed to skip task:", getErrorMessage(error));
+    });
   }
 
   private async processQueue(): Promise<void> {
@@ -146,6 +152,28 @@ export class QueueRunner {
         return;
       }
 
+      const provider = getCurrentProvider();
+      if (!state.currentTaskId && detectProviderHardBusy(provider)) {
+        try {
+          const watcher = new ReplyWatcher({
+            stableDelayMs: settings.stableDelayMs,
+            maxWaitMs: settings.maxWaitMs
+          });
+          await watcher.waitUntilComplete();
+          continue;
+        } catch (error) {
+          const latest = await loadState();
+          await saveState({
+            ...latest,
+            isRunning: false,
+            isPaused: true,
+            currentTaskId: undefined,
+            lastError: getErrorMessage(error)
+          });
+          return;
+        }
+      }
+
       const runningState: QueueState = {
         ...state,
         currentTaskId: pendingTask.id,
@@ -161,7 +189,6 @@ export class QueueRunner {
       await saveState(runningState);
 
       try {
-        const provider = getCurrentProvider();
         try {
           const modelResult = await provider.selectModel(getProviderModelPreference(settings, provider.id));
           if (modelResult.warning) {
@@ -184,7 +211,8 @@ export class QueueRunner {
 
         const watcher = new ReplyWatcher({
           stableDelayMs: settings.stableDelayMs,
-          maxWaitMs: settings.maxWaitMs
+          maxWaitMs: settings.maxWaitMs,
+          requireStart: true
         });
 
         await watcher.waitUntilComplete();
@@ -197,12 +225,11 @@ export class QueueRunner {
           ...completedState,
           currentTaskId: undefined,
           tasks: shouldMarkDone
-            ? updateTask(completedState.tasks, pendingTask.id, { status: "done", error: undefined })
+            ? completedState.tasks.filter((task) => task.id !== pendingTask.id)
             : completedState.tasks
         };
 
-        const latestSettings = await loadSettings();
-        const pausedAfterCompletion = nextState.isPaused || !latestSettings.autoStartNext;
+        const pausedAfterCompletion = nextState.isPaused;
         const hasMorePending = nextState.tasks.some((task) => task.status === "pending");
 
         await saveState({
@@ -217,6 +244,19 @@ export class QueueRunner {
       } catch (error) {
         const message = getErrorMessage(error);
         const failedState = await loadState();
+        const failedTask = failedState.tasks.find((task) => task.id === pendingTask.id);
+        const taskStillOwnsRun = failedState.currentTaskId === pendingTask.id && failedTask?.status === "running";
+
+        if (!taskStillOwnsRun) {
+          if (failedState.isRunning && !failedState.isPaused && failedState.tasks.some((task) => task.status === "pending")) {
+            await saveState({
+              ...failedState,
+              currentTaskId: failedState.currentTaskId === pendingTask.id ? undefined : failedState.currentTaskId
+            });
+            continue;
+          }
+          return;
+        }
 
         await saveState({
           ...failedState,

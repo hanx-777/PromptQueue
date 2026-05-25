@@ -336,10 +336,10 @@ textarea::placeholder {
   --provider-accent: #1a73e8;
   --provider-accent-hover: #1558b0;
   --provider-accent-soft: rgba(26, 115, 232, 0.12);
-  --provider-accent-border: rgba(124, 77, 255, 0.34);
+  --provider-accent-border: rgba(26, 115, 232, 0.38);
   --provider-accent-text: #1a5fd0;
-  --focus: #7c4dff;
-  --focus-soft: rgba(124, 77, 255, 0.14);
+  --focus: #1a73e8;
+  --focus-soft: rgba(26, 115, 232, 0.14);
   --pending: #5f6368;
   --running: #1a73e8;
   --done: #188038;
@@ -372,10 +372,10 @@ textarea::placeholder {
   --provider-accent: #8ab4f8;
   --provider-accent-hover: #a8c7fa;
   --provider-accent-soft: rgba(138, 180, 248, 0.15);
-  --provider-accent-border: rgba(196, 181, 253, 0.32);
+  --provider-accent-border: rgba(138, 180, 248, 0.36);
   --provider-accent-text: #a8c7fa;
-  --focus: #c4b5fd;
-  --focus-soft: rgba(196, 181, 253, 0.14);
+  --focus: #8ab4f8;
+  --focus-soft: rgba(138, 180, 248, 0.16);
   --pending: #9aa0a6;
   --running: #8ab4f8;
   --done: #81c995;
@@ -461,6 +461,133 @@ textarea::placeholder {
   background: transparent;
   box-shadow: none;
   justify-content: center;
+}
+
+.queue-shell.native-queue-dock {
+  pointer-events: auto;
+  position: fixed;
+  right: auto;
+  z-index: 2147483646;
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-width: 0;
+  overflow: hidden;
+  transform: translateY(-100%);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.native-dock-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: center;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.native-dock-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.native-dock-title strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.native-dock-title span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.native-task-actions {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.native-task-list {
+  display: grid;
+  gap: 7px;
+  min-height: 0;
+  padding: 8px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.native-task-row {
+  display: grid;
+  gap: 7px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface-soft);
+}
+
+.native-task-row[draggable="true"] {
+  cursor: grab;
+}
+
+.native-task-row:active {
+  cursor: grabbing;
+}
+
+.native-task-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.native-task-preview {
+  margin: 0;
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.native-task-edit {
+  display: grid;
+  gap: 6px;
+}
+
+.native-task-edit textarea {
+  min-height: 62px;
+}
+
+.native-task-actions {
+  flex-wrap: wrap;
+}
+
+.native-task-actions button {
+  min-height: 26px;
+  padding: 4px 7px;
+  font-size: 11px;
+}
+
+.native-dock-empty {
+  margin: 8px;
+  padding: 10px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 12px;
+  color: var(--muted);
+  font-size: 12px;
+  text-align: center;
 }
 
 .collapse-tab {
@@ -735,7 +862,10 @@ textarea::placeholder {
 }
 
 .run-section {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  min-height: 100%;
 }
 
 .settings-panel,
@@ -810,6 +940,32 @@ textarea::placeholder {
 
 .queue-messages-preview {
   padding: 0;
+}
+
+.run-queue-list {
+  flex: 1;
+  min-height: 180px;
+}
+
+.queue-task-list {
+  min-height: 0;
+}
+
+.run-bottom-stack {
+  position: sticky;
+  bottom: -16px;
+  z-index: 2;
+  display: grid;
+  gap: 10px;
+  margin: 0 -2px -16px;
+  padding: 10px 2px 16px;
+  border-top: 1px solid var(--border);
+  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  box-shadow: 0 -12px 24px rgba(0, 0, 0, 0.06);
+}
+
+.run-composer-box textarea {
+  min-height: 92px;
 }
 
 .mini-action {
@@ -1343,6 +1499,32 @@ button.status-toggle:disabled {
   display: none;
 }
 
+.error-fallback {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 16px;
+  font-size: 13px;
+}
+
+.error-fallback-title {
+  margin: 0;
+  color: var(--error-text);
+  font-weight: 600;
+}
+
+.error-fallback-detail {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.error-fallback-actions {
+  margin-top: 4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   * {
     transition: none !important;
@@ -1380,5 +1562,13 @@ button.status-toggle:disabled {
   .provider-tag,
   .run-status-pill {
     max-width: 72px;
+  }
+
+  .queue-shell.native-queue-dock {
+    border-radius: 14px;
+  }
+
+  .native-dock-header {
+    grid-template-columns: 1fr;
   }
 }

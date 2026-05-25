@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { statusLabel, type Texts } from "../content/i18n";
 import type { QueueTask } from "../content/types";
+import { previewPrompt } from "../utils/dom";
 import { GripIcon, MinusIcon, PlusIcon } from "./Icons";
 
 interface TaskItemProps {
@@ -16,11 +17,7 @@ interface TaskItemProps {
   onRetry: (id: string) => void;
   onDragStart: (id: string) => void;
   onDropOn: (id: string) => void;
-}
-
-function previewPrompt(prompt: string): string {
-  const normalized = prompt.replace(/\s+/g, " ").trim();
-  return normalized.length > 80 ? `${normalized.slice(0, 80)}...` : normalized;
+  onDragEnd?: () => void;
 }
 
 export function TaskItem({
@@ -35,12 +32,14 @@ export function TaskItem({
   onSkip,
   onRetry,
   onDragStart,
-  onDropOn
+  onDropOn,
+  onDragEnd
 }: TaskItemProps): JSX.Element {
   const [expanded, setExpanded] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(task.prompt);
   const locked = task.status === "running";
+  const canReorder = task.status === "pending";
 
   const saveEdit = (): void => {
     const trimmed = draft.trim();
@@ -54,17 +53,22 @@ export function TaskItem({
   return (
     <article
       className={`task-item task-${task.status}`}
-      draggable={!locked}
-      onDragStart={() => !locked && onDragStart(task.id)}
-      onDragOver={(event) => event.preventDefault()}
-      onDrop={() => onDropOn(task.id)}
+      draggable={canReorder}
+      onDragStart={() => canReorder && onDragStart(task.id)}
+      onDragOver={(event) => {
+        if (canReorder) {
+          event.preventDefault();
+        }
+      }}
+      onDrop={() => canReorder && onDropOn(task.id)}
+      onDragEnd={onDragEnd}
     >
       <div className="task-header">
         <button
           className="drag-handle icon-button"
           type="button"
           title={texts.dragToReorder}
-          disabled={locked}
+          disabled={!canReorder}
           aria-label={texts.dragTask}
         >
           <GripIcon />
@@ -114,19 +118,19 @@ export function TaskItem({
         <button type="button" className="secondary" onClick={() => onDelete(task.id)} disabled={locked}>
           {texts.delete}
         </button>
-        <button type="button" className="secondary" onClick={() => onMoveTop(task.id)} disabled={locked || index === 0}>
+        <button type="button" className="secondary" onClick={() => onMoveTop(task.id)} disabled={!canReorder || index === 0}>
           {texts.top}
         </button>
-        <button type="button" className="secondary" onClick={() => onMove(task.id, "up")} disabled={locked || index === 0}>
+        <button type="button" className="secondary" onClick={() => onMove(task.id, "up")} disabled={!canReorder || index === 0}>
           {texts.up}
         </button>
-        <button type="button" className="secondary" onClick={() => onMove(task.id, "down")} disabled={locked || index === total - 1}>
+        <button type="button" className="secondary" onClick={() => onMove(task.id, "down")} disabled={!canReorder || index === total - 1}>
           {texts.down}
         </button>
-        <button type="button" className="secondary" onClick={() => onSkip(task.id)} disabled={task.status === "done" || task.status === "skipped"}>
+        <button type="button" className="secondary" onClick={() => onSkip(task.id)} disabled={task.status !== "pending"}>
           {texts.skip}
         </button>
-        <button type="button" className="secondary" onClick={() => onRetry(task.id)} disabled={task.status === "running"}>
+        <button type="button" className="secondary" onClick={() => onRetry(task.id)} disabled={task.status === "running" || task.status === "pending"}>
           {texts.retry}
         </button>
       </div>

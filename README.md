@@ -6,7 +6,7 @@ Queue prompts, reuse workflows, and steer your next message across major AI chat
 
 在主流 AI 对话网页中排队发送提示词、复用工作流并控制下一步输入。
 
-[Privacy Policy](./PRIVACY.md) / [隐私权政策](./PRIVACY.md)
+[Privacy Policy](./PRIVACY.md) / [Release Notes](./CHANGELOG.md) / [隐私权政策](./PRIVACY.md)
 
 ## English
 
