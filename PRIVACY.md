@@ -35,10 +35,13 @@ PromptQueue stores the following data only in `chrome.storage.local` on your dev
 - provider model preferences
 - recent error or reload warning state
 - local run log entries with task status, provider, timestamps, attempt counts, errors, and prompt previews
+- temporary pending right-click context actions, containing only the action type, user-selected text, page title, page URL, and creation time
 
 Text Compare input is session-only. The original and revised text you paste into the Compare tab is kept only in the current page session state and is not written to `chrome.storage.local`.
 
 Workflow variable values are also session-only. They are used to create ordinary queue messages when you run a workflow and are not stored as separate variable history.
+
+Right-click context actions are created only when you choose a PromptQueue browser context-menu item. If the action starts from a non-supported webpage, it is stored briefly until a supported AI page opens and consumes it into the queue; consumed actions are cleared immediately.
 
 You can remove this data by clearing the extension storage, uninstalling the extension, or using the extension's queue/workflow clear controls.
 
@@ -47,6 +50,7 @@ You can remove this data by clearing the extension storage, uninstalling the ext
 PromptQueue requests only:
 
 - `storage`, used to save queue, workflow, and settings data locally
+- `contextMenus`, used to show user-initiated right-click actions for selected text and page context
 - host permissions for supported AI chat pages:
   - `https://chatgpt.com/*`
   - `https://chat.openai.com/*`
@@ -110,10 +114,13 @@ PromptQueue 只会在你设备上的 `chrome.storage.local` 中保存以下数�
 - 各 AI 页面的默认模型偏好
 - 最近一次错误或刷新中断提示
 - 本地运行记录，包括任务状态、服务商、时间、尝试次数、错误和 prompt 预览
+- 临时待处理右键上下文 action，只包含 action 类型、用户选中的文本、页面标题、页面 URL 和创建时间
 
 文本对比输入只保存在当前页面会话中。你粘贴到“对比”标签页的原文和新版文本不会写入 `chrome.storage.local`。
 
 工作流变量值也只在当前会话中使用。它们会在运行工作流时生成普通队列消息，不会作为单独的变量历史保存。
+
+右键上下文 action 只会在你主动选择 PromptQueue 浏览器右键菜单项时创建。如果 action 来自非支持网页，它会被短暂保存，直到支持的 AI 页面打开并消费进队列；消费完成后会立即清除。
 
 你可以通过清空扩展存储、卸载扩展，或使用扩展内的队列/工作流清理功能删除这些数据。
 
@@ -122,6 +129,7 @@ PromptQueue 只会在你设备上的 `chrome.storage.local` 中保存以下数�
 PromptQueue 只请求：
 
 - `storage`：用于在本地保存队列、工作流和设置
+- `contextMenus`：用于显示由用户主动触发的选中文本和页面上下文右键菜单
 - 支持的 AI 对话网页 host permissions：
   - `https://chatgpt.com/*`
   - `https://chat.openai.com/*`

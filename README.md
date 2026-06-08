@@ -22,10 +22,11 @@ This is not an OpenAI API project. It does not use an API key, backend service, 
 - Workflow variables with run-time fill-in for `{{topic}}` style placeholders
 - Built-in workflow examples for polishing, review, translation, product copy, and long-form summaries
 - Workflow drag-and-drop ordering and workflow message editing
-- Text Compare tab with two inputs, real-time visual diff, responsive side-by-side view, line/word-level highlights, and Markdown change summaries
+- Text Compare tab with two inputs, real-time visual diff, responsive side-by-side view, line/word-level highlights, ignore whitespace/case options, change-only view, and Markdown change summaries
 - Steer Next and Stop & Steer for next-message direction changes
 - Local run log with prompt previews, attempts, status, and copyable Markdown output
 - Optional auto-retry for pre-send failures
+- Browser right-click context tools for queueing selected text, summarizing/translating/rewriting/explaining a selection, or queueing the current page title and URL
 - Conservative reply completion detection for long replies and image generation
 - Per-provider default model preferences, using visible model menus only
 - Clickable task status chips for pending, running, failed, and skipped tasks
@@ -55,7 +56,7 @@ Then load the extension:
 ### Usage
 
 - Run: add queue messages, insert steer prompts, start/pause the queue, clear the queue, save the current queue as a named workflow, and watch Queue Messages update.
-- Compare: paste original and revised text to see real-time additions, deletions, changed-line highlights, and copy a Markdown summary. Widen the panel for side-by-side diff.
+- Compare: paste original and revised text to see real-time additions, deletions, changed-line highlights, filter to changed lines, ignore whitespace/case differences, copy revised text, and copy a Markdown summary. Widen the panel for side-by-side diff.
 - Workflow: manage saved workflows, add built-in examples, fill workflow variables at run time, drag to reorder workflows, edit messages, delete, import, and export workflow JSON.
 - Settings: timing, optional pre-send auto-retry, language, theme, separators, panel width, and advanced default model preferences.
 - Support: GitHub Star, Ko-fi, and optional donation QR code.
@@ -70,6 +71,7 @@ PromptQueue sends the first pending message, waits until the provider reply appe
 - Does not collect account information.
 - Does not scrape authentication tokens.
 - Does not request `tabs`, `cookies`, `webRequest`, `scripting`, `activeTab`, or other sensitive permissions.
+- Right-click context actions only use text or page metadata you explicitly choose from the browser context menu; temporary pending actions are cleared after being added to the queue.
 - The GitHub and Ko-fi buttons open external pages; PromptQueue does not request OAuth permission.
 
 See [PRIVACY.md](./PRIVACY.md) for the full privacy policy.
@@ -87,10 +89,11 @@ See [PRIVACY.md](./PRIVACY.md) for the full privacy policy.
 - Repository: `https://github.com/hanx-777/PromptQueue`
 - Source entry: `src/content/index.tsx`
 - Content script output: `dist/assets/content.js`
+- Background service worker output: `dist/assets/background.js`
 - Manifest source: `manifest.json`
 - Manifest build copy: `dist/manifest.json`
 - Icons: `public/icons`
-- The Vite build disables code splitting and emits a stable content script filename for Manifest V3 loading.
+- The Vite build disables content-script code splitting and emits stable content/background filenames for Manifest V3 loading.
 - Quality checks: `npm run test`, `npm run build`, or `npm run check` for both tests and build.
 
 ## 中文
@@ -107,10 +110,11 @@ PromptQueue 是一个本地运行的 Chrome / Edge Manifest V3 浏览器扩展�
 - 工作流变量：运行时填写 `{{topic}}` 这类占位符
 - 内置工作流示例：论文润色、代码审查、翻译、产品文案、长文总结
 - 工作流支持拖拽排序，工作流内部消息可编辑
-- 文本对比标签页：两个输入框、实时可视化 diff、拉宽后并排视图、按行和词/中文字符高亮，并可复制 Markdown 变更摘要
+- 文本对比标签页：两个输入框、实时可视化 diff、拉宽后并排视图、按行和词/中文字符高亮，支持忽略空白/大小写、只看修改处，并可复制 Markdown 变更摘要
 - Steer Next 和 Stop & Steer，用于控制下一轮输入方向
 - 本地运行记录：保存 prompt 预览、尝试次数、状态，并可复制 Markdown 日志
 - 可选的发送前失败自动重试
+- 浏览器右键菜单：可将选中文本直接入队，或生成总结、翻译、改写、解释 prompt，也可把当前页面标题和 URL 加入队列
 - 更保守的回复完成判定，降低长回复和图片生成时误插入下一条的风险
 - 支持为不同 AI 页面配置默认模型偏好，只通过可见模型菜单尽力切换
 - 支持待处理、运行中、失败、已跳过等任务状态
@@ -140,7 +144,7 @@ npm run build
 ### 使用
 
 - 运行：添加队列消息、插入 Steer、开始/暂停队列、清空队列、把当前队列保存为命名工作流，并查看队列消息状态。
-- 对比：粘贴原文和新版文本，实时查看新增、删除和修改行高亮，并复制 Markdown 摘要。拉宽面板后会切换为并排 diff。
+- 对比：粘贴原文和新版文本，实时查看新增、删除和修改行高亮，可只看修改处、忽略空白/大小写、复制新版文本，并复制 Markdown 摘要。拉宽面板后会切换为并排 diff。
 - 工作流：管理已保存工作流，添加内置示例，运行前填写变量，拖拽排序，编辑名称和消息，支持删除、导入和导出 JSON。
 - 设置：调整等待时间、可选发送前自动重试、语言、主题、分隔符、面板宽度，以及高级默认模型偏好。
 - 支持：GitHub Star、Ko-fi 和可选打赏码。
@@ -155,6 +159,7 @@ PromptQueue 会发送第一条待处理消息，等待当前 AI 网页回复看�
 - 不收集账号信息。
 - 不抓取认证 Token。
 - 不申请 `tabs`、`cookies`、`webRequest`、`scripting`、`activeTab` 或其他敏感权限。
+- 右键菜单只处理你主动选择的文本或页面元数据；临时待处理上下文在加入队列后会立即清除。
 - GitHub 和 Ko-fi 按钮只会打开外部页面，PromptQueue 不申请 OAuth 权限。
 
 完整隐私权政策见 [PRIVACY.md](./PRIVACY.md)。
@@ -172,8 +177,9 @@ PromptQueue 会发送第一条待处理消息，等待当前 AI 网页回复看�
 - 仓库：`https://github.com/hanx-777/PromptQueue`
 - 源码入口：`src/content/index.tsx`
 - 内容脚本输出：`dist/assets/content.js`
+- 后台 Service Worker 输出：`dist/assets/background.js`
 - Manifest 源文件：`manifest.json`
 - Manifest 构建产物：`dist/manifest.json`
 - 图标目录：`public/icons`
-- Vite 构建关闭代码分割，并为 Manifest V3 输出稳定的 content script 文件名。
+- Vite 构建关闭 content script 代码分割，并为 Manifest V3 输出稳定的 content/background 文件名。
 - 质量检查：`npm run test`、`npm run build`，或使用 `npm run check` 同时运行测试和构建。

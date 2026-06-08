@@ -71,6 +71,23 @@ export interface QueueRunLogEntry {
   error?: string;
 }
 
+export type ContextMenuActionType =
+  | "queue-selection"
+  | "summarize-selection"
+  | "translate-selection"
+  | "rewrite-selection"
+  | "explain-selection"
+  | "queue-page-context";
+
+export interface PendingContextAction {
+  id: string;
+  type: ContextMenuActionType;
+  selectionText?: string;
+  pageTitle?: string;
+  pageUrl?: string;
+  createdAt: number;
+}
+
 export interface QueueState {
   tasks: QueueTask[];
   isRunning: boolean;

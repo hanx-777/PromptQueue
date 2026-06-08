@@ -22,11 +22,17 @@ export interface DiffStats {
   changed: number;
 }
 
+export interface DiffOptions {
+  ignoreWhitespace?: boolean;
+  ignoreCase?: boolean;
+}
+
 export type DiffSummaryLanguage = "zh" | "en";
 
 interface LineOperation {
   type: "equal" | "insert" | "delete";
-  text: string;
+  oldText?: string;
+  newText?: string;
   oldLineNumber?: number;
   newLineNumber?: number;
 }
@@ -44,6 +50,21 @@ function splitLines(text: string): string[] {
 
 function createPart(type: DiffPartType, text: string): DiffPart {
   return { type, text };
+}
+
+function normalizeComparableText(text: string, options: DiffOptions | undefined): string {
+  let value = text;
+  if (options?.ignoreWhitespace) {
+    value = value.replace(/\s+/gu, "");
+  }
+  if (options?.ignoreCase) {
+    value = value.toLocaleLowerCase();
+  }
+  return value;
+}
+
+function areComparableTextsEqual(left: string, right: string, options: DiffOptions | undefined): boolean {
+  return normalizeComparableText(left, options) === normalizeComparableText(right, options);
 }
 
 function mergeAdjacentParts(parts: DiffPart[]): DiffPart[] {
@@ -81,7 +102,7 @@ function exceedsLcsBudget(leftLength: number, rightLength: number): boolean {
   return leftLength > 0 && rightLength > 0 && leftLength * rightLength > MAX_LCS_CELLS;
 }
 
-function diffLinesByPosition(oldLines: string[], newLines: string[]): LineOperation[] {
+function diffLinesByPosition(oldLines: string[], newLines: string[], options?: DiffOptions): LineOperation[] {
   const operations: LineOperation[] = [];
   const maxLength = Math.max(oldLines.length, newLines.length);
 
@@ -89,22 +110,23 @@ function diffLinesByPosition(oldLines: string[], newLines: string[]): LineOperat
     const oldLine = oldLines[index];
     const newLine = newLines[index];
     if (oldLine !== undefined && newLine !== undefined) {
-      if (oldLine === newLine) {
+      if (areComparableTextsEqual(oldLine, newLine, options)) {
         operations.push({
           type: "equal",
-          text: oldLine,
+          oldText: oldLine,
+          newText: newLine,
           oldLineNumber: index + 1,
           newLineNumber: index + 1
         });
       } else {
         operations.push({
           type: "delete",
-          text: oldLine,
+          oldText: oldLine,
           oldLineNumber: index + 1
         });
         operations.push({
           type: "insert",
-          text: newLine,
+          newText: newLine,
           newLineNumber: index + 1
         });
       }
@@ -114,14 +136,14 @@ function diffLinesByPosition(oldLines: string[], newLines: string[]): LineOperat
     if (oldLine !== undefined) {
       operations.push({
         type: "delete",
-        text: oldLine,
+        oldText: oldLine,
         oldLineNumber: index + 1
       });
     }
     if (newLine !== undefined) {
       operations.push({
         type: "insert",
-        text: newLine,
+        newText: newLine,
         newLineNumber: index + 1
       });
     }
@@ -130,21 +152,22 @@ function diffLinesByPosition(oldLines: string[], newLines: string[]): LineOperat
   return operations;
 }
 
-function diffLines(oldLines: string[], newLines: string[]): LineOperation[] {
+function diffLines(oldLines: string[], newLines: string[], options?: DiffOptions): LineOperation[] {
   if (exceedsLcsBudget(oldLines.length, newLines.length)) {
-    return diffLinesByPosition(oldLines, newLines);
+    return diffLinesByPosition(oldLines, newLines, options);
   }
 
-  const table = buildLcsTable(oldLines, newLines, (oldLine, newLine) => oldLine === newLine);
+  const table = buildLcsTable(oldLines, newLines, (oldLine, newLine) => areComparableTextsEqual(oldLine, newLine, options));
   const operations: LineOperation[] = [];
   let oldIndex = 0;
   let newIndex = 0;
 
   while (oldIndex < oldLines.length && newIndex < newLines.length) {
-    if (oldLines[oldIndex] === newLines[newIndex]) {
+    if (areComparableTextsEqual(oldLines[oldIndex], newLines[newIndex], options)) {
       operations.push({
         type: "equal",
-        text: oldLines[oldIndex],
+        oldText: oldLines[oldIndex],
+        newText: newLines[newIndex],
         oldLineNumber: oldIndex + 1,
         newLineNumber: newIndex + 1
       });
@@ -156,14 +179,14 @@ function diffLines(oldLines: string[], newLines: string[]): LineOperation[] {
     if (table[oldIndex + 1][newIndex] >= table[oldIndex][newIndex + 1]) {
       operations.push({
         type: "delete",
-        text: oldLines[oldIndex],
+        oldText: oldLines[oldIndex],
         oldLineNumber: oldIndex + 1
       });
       oldIndex += 1;
     } else {
       operations.push({
         type: "insert",
-        text: newLines[newIndex],
+        newText: newLines[newIndex],
         newLineNumber: newIndex + 1
       });
       newIndex += 1;
@@ -173,7 +196,7 @@ function diffLines(oldLines: string[], newLines: string[]): LineOperation[] {
   while (oldIndex < oldLines.length) {
     operations.push({
       type: "delete",
-      text: oldLines[oldIndex],
+      oldText: oldLines[oldIndex],
       oldLineNumber: oldIndex + 1
     });
     oldIndex += 1;
@@ -182,7 +205,7 @@ function diffLines(oldLines: string[], newLines: string[]): LineOperation[] {
   while (newIndex < newLines.length) {
     operations.push({
       type: "insert",
-      text: newLines[newIndex],
+      newText: newLines[newIndex],
       newLineNumber: newIndex + 1
     });
     newIndex += 1;
@@ -232,7 +255,7 @@ function tokenize(text: string): string[] {
   return tokens;
 }
 
-function diffTokens(oldText: string, newText: string): { oldParts: DiffPart[]; newParts: DiffPart[] } {
+function diffTokens(oldText: string, newText: string, options?: DiffOptions): { oldParts: DiffPart[]; newParts: DiffPart[] } {
   const oldTokens = tokenize(oldText);
   const newTokens = tokenize(newText);
   if (exceedsLcsBudget(oldTokens.length, newTokens.length)) {
@@ -242,14 +265,14 @@ function diffTokens(oldText: string, newText: string): { oldParts: DiffPart[]; n
     };
   }
 
-  const table = buildLcsTable(oldTokens, newTokens, (oldToken, newToken) => oldToken === newToken);
+  const table = buildLcsTable(oldTokens, newTokens, (oldToken, newToken) => areComparableTextsEqual(oldToken, newToken, options));
   const oldOperations: TokenOperation[] = [];
   const newOperations: TokenOperation[] = [];
   let oldIndex = 0;
   let newIndex = 0;
 
   while (oldIndex < oldTokens.length && newIndex < newTokens.length) {
-    if (oldTokens[oldIndex] === newTokens[newIndex]) {
+    if (areComparableTextsEqual(oldTokens[oldIndex], newTokens[newIndex], options)) {
       oldOperations.push({ type: "equal", text: oldTokens[oldIndex] });
       newOperations.push({ type: "equal", text: newTokens[newIndex] });
       oldIndex += 1;
@@ -283,45 +306,51 @@ function diffTokens(oldText: string, newText: string): { oldParts: DiffPart[]; n
 }
 
 function equalLine(operation: LineOperation): DiffLine {
+  const oldText = operation.oldText ?? "";
+  const newText = operation.newText ?? oldText;
   return {
     type: "equal",
-    oldText: operation.text,
-    newText: operation.text,
-    oldParts: [createPart("equal", operation.text)],
-    newParts: [createPart("equal", operation.text)],
+    oldText,
+    newText,
+    oldParts: [createPart("equal", oldText)],
+    newParts: [createPart("equal", newText)],
     oldLineNumber: operation.oldLineNumber,
     newLineNumber: operation.newLineNumber
   };
 }
 
 function insertLine(operation: LineOperation): DiffLine {
+  const newText = operation.newText ?? "";
   return {
     type: "insert",
     oldText: "",
-    newText: operation.text,
+    newText,
     oldParts: [],
-    newParts: [createPart("insert", operation.text)],
+    newParts: [createPart("insert", newText)],
     newLineNumber: operation.newLineNumber
   };
 }
 
 function deleteLine(operation: LineOperation): DiffLine {
+  const oldText = operation.oldText ?? "";
   return {
     type: "delete",
-    oldText: operation.text,
+    oldText,
     newText: "",
-    oldParts: [createPart("delete", operation.text)],
+    oldParts: [createPart("delete", oldText)],
     newParts: [],
     oldLineNumber: operation.oldLineNumber
   };
 }
 
-function replaceLine(deleted: LineOperation, inserted: LineOperation): DiffLine {
-  const { oldParts, newParts } = diffTokens(deleted.text, inserted.text);
+function replaceLine(deleted: LineOperation, inserted: LineOperation, options?: DiffOptions): DiffLine {
+  const oldText = deleted.oldText ?? "";
+  const newText = inserted.newText ?? "";
+  const { oldParts, newParts } = diffTokens(oldText, newText, options);
   return {
     type: "replace",
-    oldText: deleted.text,
-    newText: inserted.text,
+    oldText,
+    newText,
     oldParts,
     newParts,
     oldLineNumber: deleted.oldLineNumber,
@@ -329,7 +358,7 @@ function replaceLine(deleted: LineOperation, inserted: LineOperation): DiffLine 
   };
 }
 
-function coalesceLineOperations(operations: LineOperation[]): DiffLine[] {
+function coalesceLineOperations(operations: LineOperation[], options?: DiffOptions): DiffLine[] {
   const lines: DiffLine[] = [];
   let index = 0;
 
@@ -355,7 +384,7 @@ function coalesceLineOperations(operations: LineOperation[]): DiffLine[] {
 
     const pairCount = Math.min(deleted.length, inserted.length);
     for (let pairIndex = 0; pairIndex < pairCount; pairIndex += 1) {
-      lines.push(replaceLine(deleted[pairIndex], inserted[pairIndex]));
+      lines.push(replaceLine(deleted[pairIndex], inserted[pairIndex], options));
     }
     for (let deleteIndex = pairCount; deleteIndex < deleted.length; deleteIndex += 1) {
       lines.push(deleteLine(deleted[deleteIndex]));
@@ -368,8 +397,8 @@ function coalesceLineOperations(operations: LineOperation[]): DiffLine[] {
   return lines;
 }
 
-export function diffTexts(oldText: string, newText: string): DiffLine[] {
-  return coalesceLineOperations(diffLines(splitLines(oldText), splitLines(newText)));
+export function diffTexts(oldText: string, newText: string, options?: DiffOptions): DiffLine[] {
+  return coalesceLineOperations(diffLines(splitLines(oldText), splitLines(newText), options), options);
 }
 
 export function getDiffStats(lines: DiffLine[]): DiffStats {

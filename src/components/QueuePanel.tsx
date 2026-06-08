@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getTexts, type Texts } from "../content/i18n";
+import {
+  buildContextPrompt,
+  CONTEXT_ACTION_EVENT,
+  CONTEXT_ACTION_MESSAGE_TYPE,
+  loadPendingContextActions,
+  normalizePendingContextActions,
+  savePendingContextActions
+} from "../content/contextActions";
 import { detectProviderHardBusy, hasActiveQueue } from "../content/providerRuntime";
 import { QueueRunner } from "../content/queueRunner";
 import {
@@ -13,7 +21,7 @@ import {
   saveWorkflows,
   subscribeStorageChanges
 } from "../content/storage";
-import type { QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "../content/types";
+import type { PendingContextAction, QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "../content/types";
 import { BUILT_IN_WORKFLOW_TEMPLATES, createWorkflowFromTemplate, type BuiltInWorkflowTemplate } from "../content/workflowTemplates";
 import { getCurrentProvider } from "../content/providers";
 import { clamp, createId, readEditableText } from "../utils/dom";
@@ -211,6 +219,31 @@ function getSections(texts: Texts): Array<{ id: PanelSection; label: string }> {
     { id: "settings", label: texts.navSettings },
     { id: "support", label: texts.navSupport }
   ];
+}
+
+function formatCountMessage(template: string, count: number): string {
+  return template.replace("{count}", String(count));
+}
+
+function getContextActionsFromEvent(event: Event): PendingContextAction[] {
+  if (!(event instanceof CustomEvent)) {
+    return [];
+  }
+
+  const detail = event.detail;
+  if (!isRecord(detail)) {
+    return [];
+  }
+
+  return normalizePendingContextActions(detail.actions);
+}
+
+function getContextActionsFromMessage(message: unknown): PendingContextAction[] {
+  if (!isRecord(message) || message.type !== CONTEXT_ACTION_MESSAGE_TYPE) {
+    return [];
+  }
+
+  return normalizePendingContextActions([message.action]);
 }
 
 function reorderWorkflows(workflows: QueueWorkflow[], draggedId: string, targetId: string): QueueWorkflow[] {
@@ -604,6 +637,75 @@ export function QueuePanel(): JSX.Element {
     await provider.setComposerText("");
     runQueueInBackground();
   }, [persistState, provider, runQueueInBackground, settings.batchSeparator, texts.emptyPrompt, texts.nativeQueueUnavailable]);
+
+  const enqueueContextActions = useCallback(async (actions: PendingContextAction[]): Promise<number> => {
+    const prompts = actions
+      .map((action) => buildContextPrompt(action, settings.language))
+      .filter((prompt): prompt is string => Boolean(prompt?.trim()));
+
+    if (!prompts.length) {
+      setLocalMessage(texts.contextQueueIgnored);
+      return 0;
+    }
+
+    const latest = await loadState();
+    await persistStateAndRunQueue({
+      ...latest,
+      tasks: [...latest.tasks, ...prompts.map((prompt) => makeTask(prompt))],
+      lastError: undefined
+    });
+    setActiveSection("run");
+    setLocalMessage(formatCountMessage(texts.contextQueuedMessage, prompts.length));
+    return prompts.length;
+  }, [persistStateAndRunQueue, settings.language, texts.contextQueueIgnored, texts.contextQueuedMessage]);
+
+  useEffect(() => {
+    const contextEventHandler = (event: Event): void => {
+      const actions = getContextActionsFromEvent(event);
+      if (actions.length) {
+        void enqueueContextActions(actions);
+      }
+    };
+
+    window.addEventListener(CONTEXT_ACTION_EVENT, contextEventHandler);
+
+    const runtimeMessageHandler = (
+      message: unknown,
+      _sender: chrome.runtime.MessageSender,
+      sendResponse: (response?: { ok: boolean }) => void
+    ): true | false => {
+      const actions = getContextActionsFromMessage(message);
+      if (!actions.length) {
+        return false;
+      }
+
+      void enqueueContextActions(actions)
+        .then(() => sendResponse({ ok: true }))
+        .catch(() => sendResponse({ ok: false }));
+      return true;
+    };
+
+    if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
+      chrome.runtime.onMessage.addListener(runtimeMessageHandler);
+    }
+
+    void loadPendingContextActions()
+      .then(async (actions) => {
+        if (actions.length) {
+          const addedCount = await enqueueContextActions(actions);
+          if (addedCount > 0) {
+            await savePendingContextActions([]);
+          }
+        }
+      });
+
+    return () => {
+      window.removeEventListener(CONTEXT_ACTION_EVENT, contextEventHandler);
+      if (typeof chrome !== "undefined" && chrome.runtime?.onMessage) {
+        chrome.runtime.onMessage.removeListener(runtimeMessageHandler);
+      }
+    };
+  }, [enqueueContextActions]);
 
   useEffect(() => {
     const toggleHandler = (): void => {

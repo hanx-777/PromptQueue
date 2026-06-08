@@ -84,3 +84,12 @@ export function ClearIcon({ className }: IconProps): JSX.Element {
     </IconShell>
   );
 }
+
+export function CopyIcon({ className }: IconProps): JSX.Element {
+  return (
+    <IconShell className={className}>
+      <path d="M8 8h10v12H8z" />
+      <path d="M6 16H4V4h10v2" />
+    </IconShell>
+  );
+}

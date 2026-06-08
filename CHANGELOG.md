@@ -7,12 +7,16 @@
 - Added a Text Compare tab with original/revised inputs, real-time line-level diff, and word / Chinese-character highlights.
 - Added responsive split and unified diff views with explicit `+`, `-`, and `~` markers so changes are not identified by color alone.
 - Added Markdown diff summaries that can be copied from the Compare tab.
+- Added Diff tab controls for ignoring whitespace, ignoring case, showing only changed lines, and copying the revised text.
 - Added workflow variables for `{{topic}}` style placeholders with run-time fill-in before queue creation.
 - Added five local built-in workflow examples for polishing, code review, translation, product copy, and long-form summaries.
 - Added optional pre-send auto-retry settings for failures before a message is sent.
 - Added a local run log with prompt previews, attempt counts, status, provider, and copyable Markdown output.
+- Added browser right-click context tools for queueing selected text, summarizing/translating/rewriting/explaining a selection, or queueing page title and URL.
+- Added a Manifest V3 background service worker and short-lived pending context action storage for non-provider webpages.
 - Added pure diff regression tests covering equal text, insertions, deletions, replacements, empty input, Chinese changes, and English word-level changes.
 - Added P0 regression tests for workflow variables, templates, run logs, retry policy, and diff summaries.
+- Added P1 regression tests for context prompts, pending context action normalization, background dispatch, and diff ignore options.
 - Added GitHub Actions CI that runs the project test suite and production build.
 
 ### Fixed
@@ -27,6 +31,7 @@
 - The queue status bar now reports the current active task state without a misleading completed-count label.
 - Added `npm run test` and `npm run check` scripts for local and CI verification.
 - Updated documentation for the Compare tab, quality checks, and the session-only privacy model of comparison inputs.
+- Updated documentation and privacy notes for right-click context actions and the `contextMenus` permission.
 
 ## v1.0.0 - 2026-05-25
 

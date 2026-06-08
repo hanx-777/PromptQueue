@@ -26,6 +26,17 @@ describe("diffTexts", () => {
     assert.equal(getDiffStats(lines).changed, 0);
   });
 
+  it("can ignore whitespace and case while preserving original display text", () => {
+    const whitespace = diffTexts("hello   world", "hello world", { ignoreWhitespace: true });
+    assert.deepEqual(whitespace.map((line) => line.type), ["equal"]);
+    assert.equal(whitespace[0]?.oldText, "hello   world");
+    assert.equal(whitespace[0]?.newText, "hello world");
+
+    const caseOnly = diffTexts("Alpha", "alpha", { ignoreCase: true });
+    assert.deepEqual(caseOnly.map((line) => line.type), ["equal"]);
+    assert.equal(getDiffStats(caseOnly).changed, 0);
+  });
+
   it("marks inserted and deleted lines", () => {
     const lines = diffTexts("alpha\nbeta", "alpha\ngamma\nbeta");
 

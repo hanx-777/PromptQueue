@@ -1,8 +1,8 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { Texts } from "../content/i18n";
 import type { Language } from "../content/i18n";
-import { diffTexts, formatDiffSummary, getDiffStats, type DiffLine, type DiffPart } from "../utils/textDiff";
-import { ClearIcon, SwapIcon } from "./Icons";
+import { diffTexts, formatDiffSummary, getDiffStats, type DiffLine, type DiffOptions, type DiffPart } from "../utils/textDiff";
+import { ClearIcon, CopyIcon, SwapIcon } from "./Icons";
 
 interface TextComparePanelProps {
   texts: Texts;
@@ -126,9 +126,20 @@ export function TextComparePanel({
   const panelRef = useRef<HTMLElement | null>(null);
   const [useSplitView, setUseSplitView] = useState(false);
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
+  const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
+  const [ignoreCase, setIgnoreCase] = useState(false);
+  const [onlyChanges, setOnlyChanges] = useState(false);
   const deferredOldText = useDeferredValue(oldText);
   const deferredNewText = useDeferredValue(newText);
-  const diffLines = useMemo(() => diffTexts(deferredOldText, deferredNewText), [deferredOldText, deferredNewText]);
+  const diffOptions = useMemo<DiffOptions>(() => ({
+    ignoreWhitespace,
+    ignoreCase
+  }), [ignoreCase, ignoreWhitespace]);
+  const diffLines = useMemo(() => diffTexts(deferredOldText, deferredNewText, diffOptions), [deferredOldText, deferredNewText, diffOptions]);
+  const visibleDiffLines = useMemo(
+    () => onlyChanges ? diffLines.filter((line) => line.type !== "equal") : diffLines,
+    [diffLines, onlyChanges]
+  );
   const stats = useMemo(() => getDiffStats(diffLines), [diffLines]);
   const oldMetrics = useMemo(() => getTextMetrics(oldText), [oldText]);
   const newMetrics = useMemo(() => getTextMetrics(newText), [newText]);
@@ -175,6 +186,15 @@ export function TextComparePanel({
     }
   };
 
+  const copyRevised = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(newText);
+      setCopyMessage(texts.compareRevisedCopied);
+    } catch {
+      setCopyMessage(texts.compareRevisedCopyFailed);
+    }
+  };
+
   return (
     <section ref={panelRef} className="panel-section compare-panel" aria-label={texts.navCompare}>
       <div className="compare-input-grid">
@@ -216,7 +236,12 @@ export function TextComparePanel({
 
           <div className="compare-actions">
             <button type="button" className="secondary icon-text-action" onClick={() => void copySummary()} disabled={!hasChanges}>
+              <CopyIcon />
               <span>{texts.compareCopySummary}</span>
+            </button>
+            <button type="button" className="secondary icon-text-action" onClick={() => void copyRevised()} disabled={!newText}>
+              <CopyIcon />
+              <span>{texts.compareCopyRevised}</span>
             </button>
             <button type="button" className="secondary icon-text-action" onClick={swap} disabled={!hasInput}>
               <SwapIcon />
@@ -229,6 +254,33 @@ export function TextComparePanel({
           </div>
         </div>
 
+        <div className="compare-options" aria-label={texts.compareStatsLabel}>
+          <label className="mini-toggle compare-toggle">
+            <input
+              type="checkbox"
+              checked={ignoreWhitespace}
+              onChange={(event) => setIgnoreWhitespace(event.target.checked)}
+            />
+            <span>{texts.compareIgnoreWhitespace}</span>
+          </label>
+          <label className="mini-toggle compare-toggle">
+            <input
+              type="checkbox"
+              checked={ignoreCase}
+              onChange={(event) => setIgnoreCase(event.target.checked)}
+            />
+            <span>{texts.compareIgnoreCase}</span>
+          </label>
+          <label className="mini-toggle compare-toggle">
+            <input
+              type="checkbox"
+              checked={onlyChanges}
+              onChange={(event) => setOnlyChanges(event.target.checked)}
+            />
+            <span>{texts.compareOnlyChanges}</span>
+          </label>
+        </div>
+
         {copyMessage ? <div className="compare-copy-message">{copyMessage}</div> : null}
 
         <div className="compare-legend" aria-label={texts.compareLegendLabel}>
@@ -239,6 +291,8 @@ export function TextComparePanel({
 
         {!hasInput ? (
           <div className="compare-empty-state">{texts.compareEmptyState}</div>
+        ) : onlyChanges && !visibleDiffLines.length ? (
+          <div className="compare-empty-state">{texts.compareOnlyChangesEmpty}</div>
         ) : (
           <div className="compare-diff-surface">
             {useSplitView ? (
@@ -247,7 +301,7 @@ export function TextComparePanel({
                   <span>{texts.compareOldSide}</span>
                   <span>{texts.compareNewSide}</span>
                 </div>
-                {diffLines.map((line, index) => (
+                {visibleDiffLines.map((line, index) => (
                   <div className={`diff-split-row diff-split-row-${line.type}`} key={`${line.type}-${index}`}>
                     {renderSplitCell(line, "old", texts)}
                     {renderSplitCell(line, "new", texts)}
@@ -256,7 +310,7 @@ export function TextComparePanel({
               </div>
             ) : (
               <div className="compare-unified-view" aria-label={texts.compareUnifiedView}>
-                {diffLines.flatMap((line) => renderUnifiedRows(line, texts))}
+                {visibleDiffLines.flatMap((line) => renderUnifiedRows(line, texts))}
               </div>
             )}
           </div>

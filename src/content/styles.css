@@ -1122,12 +1122,14 @@ textarea::placeholder {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
 }
 
 .compare-stat-list,
 .compare-actions,
+.compare-options,
 .compare-legend {
   display: flex;
   align-items: center;
@@ -1142,7 +1144,8 @@ textarea::placeholder {
 
 .compare-actions {
   flex: 0 0 auto;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .compare-copy-message {
@@ -1203,6 +1206,23 @@ textarea::placeholder {
 
 .icon-text-action svg {
   flex: 0 0 auto;
+}
+
+.compare-options {
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.compare-toggle {
+  justify-content: flex-start;
+  min-height: 28px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 11px;
+  font-weight: 700;
 }
 
 .compare-legend {
