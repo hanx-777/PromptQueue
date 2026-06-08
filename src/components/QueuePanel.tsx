@@ -22,9 +22,10 @@ import { NativeQueueDock } from "./NativeQueueDock";
 import { SettingsPanel } from "./SettingsPanel";
 import { SteerBox } from "./SteerBox";
 import { TaskItem } from "./TaskItem";
+import { TextComparePanel } from "./TextComparePanel";
 import { WorkflowCard } from "./WorkflowCard";
 
-type PanelSection = "run" | "workflow" | "settings" | "support";
+type PanelSection = "run" | "compare" | "workflow" | "settings" | "support";
 type ResolvedTheme = Exclude<QueueSettings["theme"], "page">;
 
 const GITHUB_REPO_URL = "https://github.com/hanx-777/PromptQueue";
@@ -194,6 +195,7 @@ function getUniqueWorkflowName(name: string, workflows: QueueWorkflow[], exclude
 function getSections(texts: Texts): Array<{ id: PanelSection; label: string }> {
   return [
     { id: "run", label: texts.navRun },
+    { id: "compare", label: texts.navCompare },
     { id: "workflow", label: texts.navWorkflow },
     { id: "settings", label: texts.navSettings },
     { id: "support", label: texts.navSupport }
@@ -339,6 +341,8 @@ export function QueuePanel(): JSX.Element {
   const [workflows, setWorkflows] = useState<QueueWorkflow[]>([]);
   const [activeSection, setActiveSection] = useState<PanelSection>("run");
   const [promptDraft, setPromptDraft] = useState("");
+  const [compareOldText, setCompareOldText] = useState("");
+  const [compareNewText, setCompareNewText] = useState("");
   const [saveWorkflowOpen, setSaveWorkflowOpen] = useState(false);
   const [workflowNameDraft, setWorkflowNameDraft] = useState("");
   const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null);
@@ -1093,7 +1097,6 @@ export function QueuePanel(): JSX.Element {
       <section className="status-bar" aria-label={texts.queueStatus}>
         <span>{texts.current}: {runningIndex || "-"}</span>
         <span>{texts.pending}: {counters.pending}</span>
-        <span>{texts.done}: {counters.done}</span>
         <span>{texts.failed}: {counters.failed}</span>
         <span>{texts.skipped}: {counters.skipped}</span>
       </section>
@@ -1301,6 +1304,16 @@ export function QueuePanel(): JSX.Element {
               <div className="empty-state">{texts.workflowEmptyState}</div>
             )}
           </section>
+        ) : null}
+
+        {activeSection === "compare" ? (
+          <TextComparePanel
+            texts={texts}
+            oldText={compareOldText}
+            newText={compareNewText}
+            onOldTextChange={setCompareOldText}
+            onNewTextChange={setCompareNewText}
+          />
         ) : null}
 
         {activeSection === "settings" ? (

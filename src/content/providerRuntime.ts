@@ -3,7 +3,7 @@ import type { QueueState } from "./types";
 import { isEditableElement } from "../utils/dom";
 
 export function hasActiveQueue(state: QueueState): boolean {
-  return state.tasks.some((task) => task.status !== "done");
+  return state.tasks.some((task) => task.status === "pending" || task.status === "running");
 }
 
 export function detectProviderHardBusy(provider: ProviderAdapter): boolean {

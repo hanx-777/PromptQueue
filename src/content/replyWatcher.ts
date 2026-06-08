@@ -59,9 +59,6 @@ export class ReplyWatcher {
       this.observer = new MutationObserver((mutations) => {
         if (mutations.some((mutation) => mutation.type === "childList" || mutation.type === "characterData")) {
           this.lastMutationAt = Date.now();
-          if (this.requireStart) {
-            sawReplyActivity = true;
-          }
         }
       });
 
@@ -96,6 +93,7 @@ export class ReplyWatcher {
         }
         if (replyIsActive) {
           sawReplyActivity = true;
+          this.lastMutationAt = Date.now();
         }
 
         if (!sawReplyActivity) {

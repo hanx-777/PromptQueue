@@ -6,7 +6,7 @@ Queue prompts, reuse workflows, and steer your next message across major AI chat
 
 在主流 AI 对话网页中排队发送提示词、复用工作流并控制下一步输入。
 
-[Privacy Policy](./PRIVACY.md) / [Release Notes](./CHANGELOG.md) / [隐私权政策](./PRIVACY.md)
+[Privacy Policy](./PRIVACY.md) / [Release Notes](./CHANGELOG.md) / [Contributing](./CONTRIBUTING.md) / [隐私权政策](./PRIVACY.md)
 
 ## English
 
@@ -20,10 +20,11 @@ This is not an OpenAI API project. It does not use an API key, backend service, 
 - Prompt queue for sending multiple messages in order
 - Named workflow library for reusable multi-message queues
 - Workflow drag-and-drop ordering and workflow message editing
+- Text Compare tab with two inputs, real-time visual diff, responsive side-by-side view, and line/word-level highlights
 - Steer Next and Stop & Steer for next-message direction changes
 - Conservative reply completion detection for long replies and image generation
 - Per-provider default model preferences, using visible model menus only
-- Clickable task status chips: pending, running, done, failed, skipped
+- Clickable task status chips for pending, running, failed, and skipped tasks
 - Chinese / English UI toggle
 - Support tab with GitHub Star, Ko-fi, and local WeChat Pay donation QR code
 - Persistent queue, workflows, settings, collapsed state, language, and panel width via `chrome.storage.local`
@@ -50,6 +51,7 @@ Then load the extension:
 ### Usage
 
 - Run: add queue messages, insert steer prompts, start/pause the queue, clear the queue, save the current queue as a named workflow, and watch Queue Messages update.
+- Compare: paste original and revised text to see real-time additions, deletions, and changed-line highlights. Widen the panel for side-by-side diff.
 - Workflow: manage saved workflows, drag to reorder workflows, run a workflow, expand it with Edit, edit its name/messages, delete, import, and export workflow JSON.
 - Settings: timing, language, theme, separators, panel width, and advanced default model preferences.
 - Support: GitHub Star, Ko-fi, and optional donation QR code.
@@ -85,6 +87,7 @@ See [PRIVACY.md](./PRIVACY.md) for the full privacy policy.
 - Manifest build copy: `dist/manifest.json`
 - Icons: `public/icons`
 - The Vite build disables code splitting and emits a stable content script filename for Manifest V3 loading.
+- Quality checks: `npm run test`, `npm run build`, or `npm run check` for both tests and build.
 
 ## 中文
 
@@ -98,10 +101,11 @@ PromptQueue 是一个本地运行的 Chrome / Edge Manifest V3 浏览器扩展�
 - 多条提示词排队，按顺序自动发送
 - 命名工作流库，可保存和复用多消息队列
 - 工作流支持拖拽排序，工作流内部消息可编辑
+- 文本对比标签页：两个输入框、实时可视化 diff、拉宽后并排视图、按行和词/中文字符高亮
 - Steer Next 和 Stop & Steer，用于控制下一轮输入方向
 - 更保守的回复完成判定，降低长回复和图片生成时误插入下一条的风险
 - 支持为不同 AI 页面配置默认模型偏好，只通过可见模型菜单尽力切换
-- 任务状态可点击切换：待处理、运行中、已完成、失败、已跳过
+- 支持待处理、运行中、失败、已跳过等任务状态
 - 中英文界面切换
 - 支持页包含 GitHub Star、Ko-fi 和本地微信打赏码
 - 队列、工作流、设置、折叠状态、语言和面板宽度都保存在 `chrome.storage.local`
@@ -128,6 +132,7 @@ npm run build
 ### 使用
 
 - 运行：添加队列消息、插入 Steer、开始/暂停队列、清空队列、把当前队列保存为命名工作流，并查看队列消息状态。
+- 对比：粘贴原文和新版文本，实时查看新增、删除和修改行高亮。拉宽面板后会切换为并排 diff。
 - 工作流：管理已保存工作流，拖拽排序，运行工作流，通过“编辑”展开并修改名称和消息，支持删除、导入和导出 JSON。
 - 设置：调整等待时间、语言、主题、分隔符、面板宽度，以及高级默认模型偏好。
 - 支持：GitHub Star、Ko-fi 和可选打赏码。
@@ -163,3 +168,4 @@ PromptQueue 会发送第一条待处理消息，等待当前 AI 网页回复看�
 - Manifest 构建产物：`dist/manifest.json`
 - 图标目录：`public/icons`
 - Vite 构建关闭代码分割，并为 Manifest V3 输出稳定的 content script 文件名。
+- 质量检查：`npm run test`、`npm run build`，或使用 `npm run check` 同时运行测试和构建。

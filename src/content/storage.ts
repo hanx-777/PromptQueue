@@ -76,16 +76,8 @@ async function storageSet(items: Record<string, unknown>): Promise<void> {
   try {
     await chrome.storage.local.set(items);
   } catch (error) {
-    logWarn("chrome.storage.local.set failed; updating in-memory fallback.", error);
-    if (STATE_KEY in items) {
-      memoryState = items[STATE_KEY] as QueueState;
-    }
-    if (SETTINGS_KEY in items) {
-      memorySettings = items[SETTINGS_KEY] as QueueSettings;
-    }
-    if (WORKFLOWS_KEY in items) {
-      memoryWorkflows = items[WORKFLOWS_KEY] as QueueWorkflow[];
-    }
+    logWarn("chrome.storage.local.set failed.", error);
+    throw error;
   }
 }
 

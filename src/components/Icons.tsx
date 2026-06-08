@@ -68,3 +68,19 @@ export function GripIcon({ className }: IconProps): JSX.Element {
     </IconShell>
   );
 }
+
+export function SwapIcon({ className }: IconProps): JSX.Element {
+  return (
+    <IconShell className={className}>
+      <path d="M7 7h11l-3-3M17 17H6l3 3M18 7l-3 3M6 17l3-3" />
+    </IconShell>
+  );
+}
+
+export function ClearIcon({ className }: IconProps): JSX.Element {
+  return (
+    <IconShell className={className}>
+      <path d="m5 19 4.8-4.8M13.2 5.8 18 1M7 21h10M4.5 16.5l3 3L19 8l-3-3L4.5 16.5Z" />
+    </IconShell>
+  );
+}

@@ -2,9 +2,9 @@
 
 PromptQueue 隐私权政策
 
-Last updated: 2026-05-20
+Last updated: 2026-06-08
 
-最后更新：2026-05-20
+最后更新：2026-06-08
 
 ## English
 
@@ -34,6 +34,8 @@ PromptQueue stores the following data only in `chrome.storage.local` on your dev
 - panel collapsed state and panel width
 - provider model preferences
 - recent error or reload warning state
+
+Text Compare input is session-only. The original and revised text you paste into the Compare tab is kept only in the current page session state and is not written to `chrome.storage.local`.
 
 You can remove this data by clearing the extension storage, uninstalling the extension, or using the extension's queue/workflow clear controls.
 
@@ -104,6 +106,8 @@ PromptQueue 只会在你设备上的 `chrome.storage.local` 中保存以下数�
 - 面板折叠状态和面板宽度
 - 各 AI 页面的默认模型偏好
 - 最近一次错误或刷新中断提示
+
+文本对比输入只保存在当前页面会话中。你粘贴到“对比”标签页的原文和新版文本不会写入 `chrome.storage.local`。
 
 你可以通过清空扩展存储、卸载扩展，或使用扩展内的队列/工作流清理功能删除这些数据。
 

@@ -1,5 +1,27 @@
 # Changelog
 
+## Unreleased - 2026-06-08
+
+### Added
+
+- Added a Text Compare tab with original/revised inputs, real-time line-level diff, and word / Chinese-character highlights.
+- Added responsive split and unified diff views with explicit `+`, `-`, and `~` markers so changes are not identified by color alone.
+- Added pure diff regression tests covering equal text, insertions, deletions, replacements, empty input, Chinese changes, and English word-level changes.
+- Added GitHub Actions CI that runs the project test suite and production build.
+
+### Fixed
+
+- Storage write failures now surface as real errors instead of silently falling back to memory-only state.
+- Active queue status now counts only pending and running tasks, so failed or skipped tasks do not keep the queue looking busy.
+- Reply detection is stricter and no longer treats unrelated DOM mutations as the start of a provider reply.
+- Large text comparisons use a bounded fallback to avoid excessive LCS work.
+
+### Changed
+
+- The queue status bar now reports the current active task state without a misleading completed-count label.
+- Added `npm run test` and `npm run check` scripts for local and CI verification.
+- Updated documentation for the Compare tab, quality checks, and the session-only privacy model of comparison inputs.
+
 ## v1.0.0 - 2026-05-25
 
 PromptQueue 1.0.0 is the first stable release for ChatGPT, Gemini, and Claude web apps.

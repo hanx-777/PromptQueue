@@ -11,6 +11,8 @@
   "scripts": {
     "build": "tsc --noEmit && vite build",
     "dev": "vite build --watch",
+    "test": "node -e \"const fs=require('node:fs');fs.rmSync('.tmp/tests',{recursive:true,force:true});fs.mkdirSync('.tmp/tests',{recursive:true});fs.writeFileSync('.tmp/tests/package.json','{\\\"type\\\":\\\"commonjs\\\"}\\n')\" && tsc --module CommonJS --moduleResolution Node --target ES2020 --types node,chrome --skipLibCheck --esModuleInterop --jsx react-jsx --outDir .tmp/tests tests/*.test.ts && node --test .tmp/tests/tests/*.test.js",
+    "check": "npm run test && npm run build",
     "clean": "rimraf dist"
   },
   "dependencies": {

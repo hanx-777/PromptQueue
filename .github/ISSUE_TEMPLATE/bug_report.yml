@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a PromptQueue problem on ChatGPT, Gemini, Claude, or the extension UI.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please do not include private prompts, account data, cookies, or tokens.
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - ChatGPT
+        - Gemini
+        - Claude
+        - Extension UI only
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What happened?
+      description: Describe the visible behavior and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Add ...
+        3. Click ...
+        4. See ...
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser
+      placeholder: Chrome 126, Edge 126, etc.
+  - type: input
+    id: extension_version
+    attributes:
+      label: PromptQueue version or commit
+      placeholder: v1.0.0, commit SHA, or branch name
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Screenshots are helpful, but please remove private conversation content first.

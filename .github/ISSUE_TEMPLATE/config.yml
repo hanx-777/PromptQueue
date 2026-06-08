@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Privacy policy
+    url: https://github.com/hanx-777/PromptQueue/blob/main/PRIVACY.md
+    about: Read how PromptQueue handles local data and permissions.
