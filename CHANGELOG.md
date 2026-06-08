@@ -8,6 +8,7 @@
 - Added responsive split and unified diff views with explicit `+`, `-`, and `~` markers so changes are not identified by color alone.
 - Added Markdown diff summaries that can be copied from the Compare tab.
 - Added Diff tab controls for ignoring whitespace, ignoring case, showing only changed lines, and copying the revised text.
+- Added manual Diff result controls for row/column view and line/character precision.
 - Added workflow variables for `{{topic}}` style placeholders with run-time fill-in before queue creation.
 - Added five local built-in workflow examples for polishing, code review, translation, product copy, and long-form summaries.
 - Added optional pre-send auto-retry settings for failures before a message is sent.

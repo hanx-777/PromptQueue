@@ -379,6 +379,10 @@ function detectPageTheme(): ResolvedTheme {
   return getSystemTheme();
 }
 
+export function shouldRenderNativeQueueDock(collapsed: boolean): boolean {
+  return collapsed;
+}
+
 export function QueuePanel(): JSX.Element {
   const [state, setState] = useState<QueueState>(DEFAULT_STATE);
   const [settings, setSettings] = useState<QueueSettings>(DEFAULT_SETTINGS);
@@ -1165,7 +1169,7 @@ export function QueuePanel(): JSX.Element {
     }
   };
 
-  const nativeQueueDock = (
+  const nativeQueueDock = shouldRenderNativeQueueDock(settings.collapsed) ? (
     <NativeQueueDock
       provider={provider}
       providerClass={providerClass}
@@ -1182,7 +1186,7 @@ export function QueuePanel(): JSX.Element {
         draggedTaskIdRef.current = null;
       }}
     />
-  );
+  ) : null;
 
   if (settings.collapsed) {
     return (

@@ -22,7 +22,7 @@ This is not an OpenAI API project. It does not use an API key, backend service, 
 - Workflow variables with run-time fill-in for `{{topic}}` style placeholders
 - Built-in workflow examples for polishing, review, translation, product copy, and long-form summaries
 - Workflow drag-and-drop ordering and workflow message editing
-- Text Compare tab with two inputs, real-time visual diff, responsive side-by-side view, line/word-level highlights, ignore whitespace/case options, change-only view, and Markdown change summaries
+- Text Compare tab with two inputs, real-time visual diff, manual row/column result views, line/character precision, ignore whitespace/case options, change-only view, and Markdown change summaries
 - Steer Next and Stop & Steer for next-message direction changes
 - Local run log with prompt previews, attempts, status, and copyable Markdown output
 - Optional auto-retry for pre-send failures
@@ -56,7 +56,7 @@ Then load the extension:
 ### Usage
 
 - Run: add queue messages, insert steer prompts, start/pause the queue, clear the queue, save the current queue as a named workflow, and watch Queue Messages update.
-- Compare: paste original and revised text to see real-time additions, deletions, changed-line highlights, filter to changed lines, ignore whitespace/case differences, copy revised text, and copy a Markdown summary. Widen the panel for side-by-side diff.
+- Compare: paste original and revised text to see real-time additions, deletions, changed-line highlights, switch row/column result views, choose line or character precision, filter to changed lines, ignore whitespace/case differences, copy revised text, and copy a Markdown summary.
 - Workflow: manage saved workflows, add built-in examples, fill workflow variables at run time, drag to reorder workflows, edit messages, delete, import, and export workflow JSON.
 - Settings: timing, optional pre-send auto-retry, language, theme, separators, panel width, and advanced default model preferences.
 - Support: GitHub Star, Ko-fi, and optional donation QR code.
@@ -110,7 +110,7 @@ PromptQueue 是一个本地运行的 Chrome / Edge Manifest V3 浏览器扩展�
 - 工作流变量：运行时填写 `{{topic}}` 这类占位符
 - 内置工作流示例：论文润色、代码审查、翻译、产品文案、长文总结
 - 工作流支持拖拽排序，工作流内部消息可编辑
-- 文本对比标签页：两个输入框、实时可视化 diff、拉宽后并排视图、按行和词/中文字符高亮，支持忽略空白/大小写、只看修改处，并可复制 Markdown 变更摘要
+- 文本对比标签页：两个输入框、实时可视化 diff、手动切换横栏/竖列结果视图，支持行/字符精度、忽略空白/大小写、只看修改处，并可复制 Markdown 变更摘要
 - Steer Next 和 Stop & Steer，用于控制下一轮输入方向
 - 本地运行记录：保存 prompt 预览、尝试次数、状态，并可复制 Markdown 日志
 - 可选的发送前失败自动重试
@@ -144,7 +144,7 @@ npm run build
 ### 使用
 
 - 运行：添加队列消息、插入 Steer、开始/暂停队列、清空队列、把当前队列保存为命名工作流，并查看队列消息状态。
-- 对比：粘贴原文和新版文本，实时查看新增、删除和修改行高亮，可只看修改处、忽略空白/大小写、复制新版文本，并复制 Markdown 摘要。拉宽面板后会切换为并排 diff。
+- 对比：粘贴原文和新版文本，实时查看新增、删除和修改行高亮，可切换横栏/竖列、行/字符精度、只看修改处、忽略空白/大小写、复制新版文本，并复制 Markdown 摘要。
 - 工作流：管理已保存工作流，添加内置示例，运行前填写变量，拖拽排序，编辑名称和消息，支持删除、导入和导出 JSON。
 - 设置：调整等待时间、可选发送前自动重试、语言、主题、分隔符、面板宽度，以及高级默认模型偏好。
 - 支持：GitHub Star、Ko-fi 和可选打赏码。

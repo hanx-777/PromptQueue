@@ -25,6 +25,7 @@ export interface DiffStats {
 export interface DiffOptions {
   ignoreWhitespace?: boolean;
   ignoreCase?: boolean;
+  precision?: "line" | "character";
 }
 
 export type DiffSummaryLanguage = "zh" | "en";
@@ -218,7 +219,7 @@ function isCjkCharacter(value: string): boolean {
   return /[\u3400-\u9fff\uf900-\ufaff]/u.test(value);
 }
 
-function tokenize(text: string): string[] {
+function tokenizeWords(text: string): string[] {
   const tokens: string[] = [];
   let current = "";
   let currentKind: "word" | "space" | "punctuation" | null = null;
@@ -255,9 +256,13 @@ function tokenize(text: string): string[] {
   return tokens;
 }
 
+function tokenizeForPrecision(text: string, options: DiffOptions | undefined): string[] {
+  return options?.precision === "character" ? Array.from(text) : tokenizeWords(text);
+}
+
 function diffTokens(oldText: string, newText: string, options?: DiffOptions): { oldParts: DiffPart[]; newParts: DiffPart[] } {
-  const oldTokens = tokenize(oldText);
-  const newTokens = tokenize(newText);
+  const oldTokens = tokenizeForPrecision(oldText, options);
+  const newTokens = tokenizeForPrecision(newText, options);
   if (exceedsLcsBudget(oldTokens.length, newTokens.length)) {
     return {
       oldParts: oldText ? [createPart("delete", oldText)] : [],
@@ -346,6 +351,18 @@ function deleteLine(operation: LineOperation): DiffLine {
 function replaceLine(deleted: LineOperation, inserted: LineOperation, options?: DiffOptions): DiffLine {
   const oldText = deleted.oldText ?? "";
   const newText = inserted.newText ?? "";
+  if (options?.precision === "line") {
+    return {
+      type: "replace",
+      oldText,
+      newText,
+      oldParts: oldText ? [createPart("delete", oldText)] : [],
+      newParts: newText ? [createPart("insert", newText)] : [],
+      oldLineNumber: deleted.oldLineNumber,
+      newLineNumber: inserted.newLineNumber
+    };
+  }
+
   const { oldParts, newParts } = diffTokens(oldText, newText, options);
   return {
     type: "replace",

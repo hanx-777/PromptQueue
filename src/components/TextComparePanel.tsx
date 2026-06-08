@@ -1,4 +1,4 @@
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import type { Texts } from "../content/i18n";
 import type { Language } from "../content/i18n";
 import { diffTexts, formatDiffSummary, getDiffStats, type DiffLine, type DiffOptions, type DiffPart } from "../utils/textDiff";
@@ -19,8 +19,8 @@ interface TextMetrics {
 }
 
 type CompareSide = "old" | "new";
-
-const SPLIT_VIEW_MIN_WIDTH = 560;
+type CompareViewMode = "row" | "column";
+type ComparePrecision = "line" | "character";
 
 function getTextMetrics(text: string): TextMetrics {
   return {
@@ -123,8 +123,8 @@ export function TextComparePanel({
   onOldTextChange,
   onNewTextChange
 }: TextComparePanelProps): JSX.Element {
-  const panelRef = useRef<HTMLElement | null>(null);
-  const [useSplitView, setUseSplitView] = useState(false);
+  const [viewMode, setViewMode] = useState<CompareViewMode>("column");
+  const [precision, setPrecision] = useState<ComparePrecision>("character");
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
   const [ignoreCase, setIgnoreCase] = useState(false);
@@ -133,8 +133,9 @@ export function TextComparePanel({
   const deferredNewText = useDeferredValue(newText);
   const diffOptions = useMemo<DiffOptions>(() => ({
     ignoreWhitespace,
-    ignoreCase
-  }), [ignoreCase, ignoreWhitespace]);
+    ignoreCase,
+    precision
+  }), [ignoreCase, ignoreWhitespace, precision]);
   const diffLines = useMemo(() => diffTexts(deferredOldText, deferredNewText, diffOptions), [deferredOldText, deferredNewText, diffOptions]);
   const visibleDiffLines = useMemo(
     () => onlyChanges ? diffLines.filter((line) => line.type !== "equal") : diffLines,
@@ -145,27 +146,7 @@ export function TextComparePanel({
   const newMetrics = useMemo(() => getTextMetrics(newText), [newText]);
   const hasInput = Boolean(oldText || newText);
   const hasChanges = stats.added > 0 || stats.deleted > 0 || stats.changed > 0;
-
-  useEffect(() => {
-    const panel = panelRef.current;
-    if (!panel) {
-      return undefined;
-    }
-
-    const syncViewMode = (): void => {
-      setUseSplitView(panel.getBoundingClientRect().width >= SPLIT_VIEW_MIN_WIDTH);
-    };
-    syncViewMode();
-
-    if (typeof ResizeObserver !== "undefined") {
-      const observer = new ResizeObserver(syncViewMode);
-      observer.observe(panel);
-      return () => observer.disconnect();
-    }
-
-    window.addEventListener("resize", syncViewMode);
-    return () => window.removeEventListener("resize", syncViewMode);
-  }, []);
+  const useSplitView = viewMode === "column";
 
   const clear = (): void => {
     onOldTextChange("");
@@ -196,7 +177,7 @@ export function TextComparePanel({
   };
 
   return (
-    <section ref={panelRef} className="panel-section compare-panel" aria-label={texts.navCompare}>
+    <section className="panel-section compare-panel" aria-label={texts.navCompare}>
       <div className="compare-input-grid">
         <label className="compare-field">
           <span className="compare-field-head">
@@ -255,6 +236,48 @@ export function TextComparePanel({
         </div>
 
         <div className="compare-options" aria-label={texts.compareStatsLabel}>
+          <div className="compare-segment" role="group" aria-label={texts.compareViewMode}>
+            <span className="compare-segment-label">{texts.compareViewMode}</span>
+            <div className="compare-segment-buttons">
+              <button
+                type="button"
+                className={viewMode === "row" ? "active" : ""}
+                aria-pressed={viewMode === "row"}
+                onClick={() => setViewMode("row")}
+              >
+                {texts.compareViewRow}
+              </button>
+              <button
+                type="button"
+                className={viewMode === "column" ? "active" : ""}
+                aria-pressed={viewMode === "column"}
+                onClick={() => setViewMode("column")}
+              >
+                {texts.compareViewColumn}
+              </button>
+            </div>
+          </div>
+          <div className="compare-segment" role="group" aria-label={texts.comparePrecisionMode}>
+            <span className="compare-segment-label">{texts.comparePrecisionMode}</span>
+            <div className="compare-segment-buttons">
+              <button
+                type="button"
+                className={precision === "line" ? "active" : ""}
+                aria-pressed={precision === "line"}
+                onClick={() => setPrecision("line")}
+              >
+                {texts.comparePrecisionLine}
+              </button>
+              <button
+                type="button"
+                className={precision === "character" ? "active" : ""}
+                aria-pressed={precision === "character"}
+                onClick={() => setPrecision("character")}
+              >
+                {texts.comparePrecisionCharacter}
+              </button>
+            </div>
+          </div>
           <label className="mini-toggle compare-toggle">
             <input
               type="checkbox"

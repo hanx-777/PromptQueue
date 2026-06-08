@@ -62,6 +62,18 @@ describe("diffTexts", () => {
     assert.equal(getDiffStats(lines).changed, 1);
   });
 
+  it("can switch between whole-line and character precision for replacements", () => {
+    const linePrecision = diffTexts("我们先从哪里开始呢?", "我们先从哪里弄开呢?", { precision: "line" });
+    assert.equal(linePrecision[0]?.type, "replace");
+    assert.deepEqual(linePrecision[0]?.oldParts, [{ type: "delete", text: "我们先从哪里开始呢?" }]);
+    assert.deepEqual(linePrecision[0]?.newParts, [{ type: "insert", text: "我们先从哪里弄开呢?" }]);
+
+    const characterPrecision = diffTexts("我们先从哪里开始呢?", "我们先从哪里弄开呢?", { precision: "character" });
+    assert.equal(characterPrecision[0]?.type, "replace");
+    assert.equal(characterPrecision[0]?.oldParts.find((part) => part.type === "delete")?.text, "始");
+    assert.equal(characterPrecision[0]?.newParts.find((part) => part.type === "insert")?.text, "弄");
+  });
+
   it("keeps context around multi-line replacements", () => {
     const lines = diffTexts("alpha\nshort line\nomega", "alpha\nlonger line\nomega");
 

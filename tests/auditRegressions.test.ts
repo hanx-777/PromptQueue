@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
+import { shouldRenderNativeQueueDock } from "../src/components/QueuePanel";
 import { hasActiveQueue } from "../src/content/providerRuntime";
 import { DEFAULT_STATE, saveState } from "../src/content/storage";
 import type { QueueState, QueueTask } from "../src/content/types";
@@ -61,6 +62,13 @@ describe("queue activity detection", () => {
     };
 
     assert.equal(hasActiveQueue(state), false);
+  });
+});
+
+describe("native queue dock visibility", () => {
+  it("shows the floating dock only when the main panel is collapsed", () => {
+    assert.equal(shouldRenderNativeQueueDock(true), true);
+    assert.equal(shouldRenderNativeQueueDock(false), false);
   });
 });
 
