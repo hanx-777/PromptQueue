@@ -4,8 +4,11 @@ import { detectProviderHardBusy } from "./providerRuntime";
 import { getCurrentProvider, getCurrentProviderLabel } from "./providers";
 import { ReplyWatcher } from "./replyWatcher";
 import { loadSettings, loadState, saveState } from "./storage";
-import type { QueueState, QueueTask } from "./types";
+import type { QueueRunLogEntry, QueueRunLogStatus, QueueSettings, QueueState, QueueTask } from "./types";
+import { createId, previewPrompt } from "../utils/dom";
+import { delay } from "../utils/events";
 import { getErrorMessage, logWarn } from "../utils/logger";
+import { appendRunLogEntry } from "../utils/runLog";
 
 function now(): number {
   return Date.now();
@@ -13,6 +16,36 @@ function now(): number {
 
 function updateTask(tasks: QueueTask[], id: string, patch: Partial<QueueTask>): QueueTask[] {
   return tasks.map((task) => (task.id === id ? { ...task, ...patch, updatedAt: now() } : task));
+}
+
+export function shouldAutoRetryTask(task: QueueTask, settings: QueueSettings, sendStarted: boolean): boolean {
+  if (!settings.autoRetryEnabled || sendStarted) {
+    return false;
+  }
+
+  const attemptCount = task.attemptCount ?? 0;
+  return attemptCount > 0 && attemptCount <= settings.maxAutoRetries;
+}
+
+function makeRunLogEntry(
+  task: QueueTask,
+  status: QueueRunLogStatus,
+  provider: string,
+  startedAt: number,
+  endedAt?: number,
+  error?: string
+): QueueRunLogEntry {
+  return {
+    id: createId(),
+    taskId: task.id,
+    promptPreview: previewPrompt(task.prompt, 120),
+    status,
+    provider,
+    startedAt,
+    endedAt,
+    attemptCount: task.attemptCount ?? 1,
+    error
+  };
 }
 
 export class QueueRunner {
@@ -106,7 +139,9 @@ export class QueueRunner {
       tasks: updateTask(state.tasks, id, {
         status: "pending",
         error: undefined,
-        resultSummary: undefined
+        resultSummary: undefined,
+        attemptCount: undefined,
+        lastAttemptAt: undefined
       }),
       isRunning: true,
       isPaused: false,
@@ -119,14 +154,27 @@ export class QueueRunner {
   skipTask(id: string): void {
     void (async () => {
       const state = await loadState();
-      await saveState({
+      const task = state.tasks.find((item) => item.id === id);
+      const skippedState: QueueState = {
         ...state,
         tasks: updateTask(state.tasks, id, {
           status: "skipped",
           error: undefined
         }),
         currentTaskId: state.currentTaskId === id ? undefined : state.currentTaskId
-      });
+      };
+      await saveState(task
+        ? appendRunLogEntry(
+            skippedState,
+            makeRunLogEntry(
+              { ...task, attemptCount: task.attemptCount ?? 1 },
+              "skipped",
+              getCurrentProviderLabel(),
+              now(),
+              now()
+            )
+          )
+        : skippedState);
     })().catch((error) => {
       logWarn("Failed to skip task:", getErrorMessage(error));
     });
@@ -174,6 +222,16 @@ export class QueueRunner {
         }
       }
 
+      const attemptStartedAt = now();
+      const attemptCount = (pendingTask.attemptCount ?? 0) + 1;
+      const runningTask: QueueTask = {
+        ...pendingTask,
+        status: "running",
+        error: undefined,
+        attemptCount,
+        lastAttemptAt: attemptStartedAt,
+        updatedAt: attemptStartedAt
+      };
       const runningState: QueueState = {
         ...state,
         currentTaskId: pendingTask.id,
@@ -182,12 +240,18 @@ export class QueueRunner {
         lastError: undefined,
         tasks: updateTask(state.tasks, pendingTask.id, {
           status: "running",
-          error: undefined
+          error: undefined,
+          attemptCount,
+          lastAttemptAt: attemptStartedAt
         })
       };
 
-      await saveState(runningState);
+      await saveState(appendRunLogEntry(
+        runningState,
+        makeRunLogEntry(runningTask, "started", provider.label, attemptStartedAt)
+      ));
 
+      let sendStarted = false;
       try {
         try {
           const modelResult = await provider.selectModel(getProviderModelPreference(settings, provider.id));
@@ -208,6 +272,7 @@ export class QueueRunner {
 
         await setComposerText(pendingTask.prompt);
         await clickSend();
+        sendStarted = true;
 
         const watcher = new ReplyWatcher({
           stableDelayMs: settings.stableDelayMs,
@@ -228,14 +293,20 @@ export class QueueRunner {
             ? completedState.tasks.filter((task) => task.id !== pendingTask.id)
             : completedState.tasks
         };
+        const loggedNextState = shouldMarkDone
+          ? appendRunLogEntry(
+              nextState,
+              makeRunLogEntry(runningTask, "done", provider.label, attemptStartedAt, now())
+            )
+          : nextState;
 
-        const pausedAfterCompletion = nextState.isPaused;
-        const hasMorePending = nextState.tasks.some((task) => task.status === "pending");
+        const pausedAfterCompletion = loggedNextState.isPaused;
+        const hasMorePending = loggedNextState.tasks.some((task) => task.status === "pending");
 
         await saveState({
-          ...nextState,
-          isRunning: nextState.isPaused ? hasMorePending : !pausedAfterCompletion && hasMorePending,
-          isPaused: nextState.isPaused
+          ...loggedNextState,
+          isRunning: loggedNextState.isPaused ? hasMorePending : !pausedAfterCompletion && hasMorePending,
+          isPaused: loggedNextState.isPaused
         });
 
         if (pausedAfterCompletion) {
@@ -258,16 +329,51 @@ export class QueueRunner {
           return;
         }
 
+        const failedRunningTask: QueueTask = {
+          ...(failedTask ?? pendingTask),
+          attemptCount,
+          lastAttemptAt: attemptStartedAt
+        };
+        if (shouldAutoRetryTask(failedRunningTask, settings, sendStarted)) {
+          const retryState = appendRunLogEntry(
+            {
+              ...failedState,
+              isRunning: true,
+              isPaused: false,
+              currentTaskId: undefined,
+              lastError: `${message} Retrying...`,
+              tasks: updateTask(failedState.tasks, pendingTask.id, {
+                status: "pending",
+                error: message,
+                attemptCount,
+                lastAttemptAt: attemptStartedAt
+              })
+            },
+            makeRunLogEntry(failedRunningTask, "retrying", provider.label, attemptStartedAt, now(), message)
+          );
+
+          await saveState(retryState);
+          await delay(settings.retryDelayMs);
+          continue;
+        }
+
         await saveState({
-          ...failedState,
-          isRunning: false,
-          isPaused: true,
-          currentTaskId: undefined,
-          lastError: message,
-          tasks: updateTask(failedState.tasks, pendingTask.id, {
-            status: "failed",
-            error: message
-          })
+          ...appendRunLogEntry(
+            {
+              ...failedState,
+              isRunning: false,
+              isPaused: true,
+              currentTaskId: undefined,
+              lastError: message,
+              tasks: updateTask(failedState.tasks, pendingTask.id, {
+                status: "failed",
+                error: message,
+                attemptCount,
+                lastAttemptAt: attemptStartedAt
+              })
+            },
+            makeRunLogEntry(failedRunningTask, "failed", provider.label, attemptStartedAt, now(), message)
+          )
         });
 
         return;

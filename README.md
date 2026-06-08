@@ -19,9 +19,13 @@ This is not an OpenAI API project. It does not use an API key, backend service, 
 - Shadow DOM sidebar on `chatgpt.com`, `chat.openai.com`, `gemini.google.com`, and `claude.ai`
 - Prompt queue for sending multiple messages in order
 - Named workflow library for reusable multi-message queues
+- Workflow variables with run-time fill-in for `{{topic}}` style placeholders
+- Built-in workflow examples for polishing, review, translation, product copy, and long-form summaries
 - Workflow drag-and-drop ordering and workflow message editing
-- Text Compare tab with two inputs, real-time visual diff, responsive side-by-side view, and line/word-level highlights
+- Text Compare tab with two inputs, real-time visual diff, responsive side-by-side view, line/word-level highlights, and Markdown change summaries
 - Steer Next and Stop & Steer for next-message direction changes
+- Local run log with prompt previews, attempts, status, and copyable Markdown output
+- Optional auto-retry for pre-send failures
 - Conservative reply completion detection for long replies and image generation
 - Per-provider default model preferences, using visible model menus only
 - Clickable task status chips for pending, running, failed, and skipped tasks
@@ -51,9 +55,9 @@ Then load the extension:
 ### Usage
 
 - Run: add queue messages, insert steer prompts, start/pause the queue, clear the queue, save the current queue as a named workflow, and watch Queue Messages update.
-- Compare: paste original and revised text to see real-time additions, deletions, and changed-line highlights. Widen the panel for side-by-side diff.
-- Workflow: manage saved workflows, drag to reorder workflows, run a workflow, expand it with Edit, edit its name/messages, delete, import, and export workflow JSON.
-- Settings: timing, language, theme, separators, panel width, and advanced default model preferences.
+- Compare: paste original and revised text to see real-time additions, deletions, changed-line highlights, and copy a Markdown summary. Widen the panel for side-by-side diff.
+- Workflow: manage saved workflows, add built-in examples, fill workflow variables at run time, drag to reorder workflows, edit messages, delete, import, and export workflow JSON.
+- Settings: timing, optional pre-send auto-retry, language, theme, separators, panel width, and advanced default model preferences.
 - Support: GitHub Star, Ko-fi, and optional donation QR code.
 
 PromptQueue sends the first pending message, waits until the provider reply appears complete, then sends the next pending message if auto-start is enabled. Pausing does not stop the current provider response; it only prevents the next queue message from being sent.
@@ -100,9 +104,13 @@ PromptQueue 是一个本地运行的 Chrome / Edge Manifest V3 浏览器扩展�
 - 在 `chatgpt.com`、`chat.openai.com`、`gemini.google.com`、`claude.ai` 注入 Shadow DOM 侧边栏
 - 多条提示词排队，按顺序自动发送
 - 命名工作流库，可保存和复用多消息队列
+- 工作流变量：运行时填写 `{{topic}}` 这类占位符
+- 内置工作流示例：论文润色、代码审查、翻译、产品文案、长文总结
 - 工作流支持拖拽排序，工作流内部消息可编辑
-- 文本对比标签页：两个输入框、实时可视化 diff、拉宽后并排视图、按行和词/中文字符高亮
+- 文本对比标签页：两个输入框、实时可视化 diff、拉宽后并排视图、按行和词/中文字符高亮，并可复制 Markdown 变更摘要
 - Steer Next 和 Stop & Steer，用于控制下一轮输入方向
+- 本地运行记录：保存 prompt 预览、尝试次数、状态，并可复制 Markdown 日志
+- 可选的发送前失败自动重试
 - 更保守的回复完成判定，降低长回复和图片生成时误插入下一条的风险
 - 支持为不同 AI 页面配置默认模型偏好，只通过可见模型菜单尽力切换
 - 支持待处理、运行中、失败、已跳过等任务状态
@@ -132,9 +140,9 @@ npm run build
 ### 使用
 
 - 运行：添加队列消息、插入 Steer、开始/暂停队列、清空队列、把当前队列保存为命名工作流，并查看队列消息状态。
-- 对比：粘贴原文和新版文本，实时查看新增、删除和修改行高亮。拉宽面板后会切换为并排 diff。
-- 工作流：管理已保存工作流，拖拽排序，运行工作流，通过“编辑”展开并修改名称和消息，支持删除、导入和导出 JSON。
-- 设置：调整等待时间、语言、主题、分隔符、面板宽度，以及高级默认模型偏好。
+- 对比：粘贴原文和新版文本，实时查看新增、删除和修改行高亮，并复制 Markdown 摘要。拉宽面板后会切换为并排 diff。
+- 工作流：管理已保存工作流，添加内置示例，运行前填写变量，拖拽排序，编辑名称和消息，支持删除、导入和导出 JSON。
+- 设置：调整等待时间、可选发送前自动重试、语言、主题、分隔符、面板宽度，以及高级默认模型偏好。
 - 支持：GitHub Star、Ko-fi 和可选打赏码。
 
 PromptQueue 会发送第一条待处理消息，等待当前 AI 网页回复看起来完成后，再根据设置自动发送下一条。暂停不会停止当前回复，只会阻止继续发送下一条。

@@ -22,6 +22,8 @@ export interface DiffStats {
   changed: number;
 }
 
+export type DiffSummaryLanguage = "zh" | "en";
+
 interface LineOperation {
   type: "equal" | "insert" | "delete";
   text: string;
@@ -384,4 +386,56 @@ export function getDiffStats(lines: DiffLine[]): DiffStats {
     },
     { added: 0, deleted: 0, changed: 0 }
   );
+}
+
+function getLineLabel(lineNumber: number | undefined, language: DiffSummaryLanguage): string {
+  if (lineNumber === undefined) {
+    return language === "zh" ? "行" : "Line";
+  }
+  return language === "zh" ? `第 ${lineNumber} 行` : `Line ${lineNumber}`;
+}
+
+export function formatDiffSummary(lines: DiffLine[], language: DiffSummaryLanguage = "en"): string {
+  const stats = getDiffStats(lines);
+  const isZh = language === "zh";
+  const output = [
+    isZh ? "# 文本对比摘要" : "# Text Diff Summary",
+    "",
+    `${isZh ? "新增" : "Added"}: ${stats.added}`,
+    `${isZh ? "删除" : "Deleted"}: ${stats.deleted}`,
+    `${isZh ? "修改" : "Changed"}: ${stats.changed}`,
+    ""
+  ];
+
+  if (stats.added === 0 && stats.deleted === 0 && stats.changed === 0) {
+    output.push(isZh ? "没有变化。" : "No changes.");
+    return output.join("\n");
+  }
+
+  lines.forEach((line) => {
+    if (line.type === "equal") {
+      return;
+    }
+
+    if (line.type === "insert") {
+      output.push(`+ ${getLineLabel(line.newLineNumber, language)}`);
+      output.push(`+ ${line.newText}`);
+      output.push("");
+      return;
+    }
+
+    if (line.type === "delete") {
+      output.push(`- ${getLineLabel(line.oldLineNumber, language)}`);
+      output.push(`- ${line.oldText}`);
+      output.push("");
+      return;
+    }
+
+    output.push(`~ ${getLineLabel(line.oldLineNumber ?? line.newLineNumber, language)}`);
+    output.push(`- ${line.oldText}`);
+    output.push(`+ ${line.newText}`);
+    output.push("");
+  });
+
+  return output.join("\n").trimEnd();
 }

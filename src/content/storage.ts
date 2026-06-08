@@ -1,4 +1,13 @@
-import type { QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "./types";
+import type {
+  QueueRunLogEntry,
+  QueueRunLogStatus,
+  QueueSettings,
+  QueueState,
+  QueueTask,
+  QueueWorkflow,
+  TaskStatus,
+  WorkflowMessage
+} from "./types";
 import { DEFAULT_PROVIDER_MODELS, normalizeProviderModels } from "./modelSettings";
 import { getErrorMessage, logWarn } from "../utils/logger";
 
@@ -7,11 +16,16 @@ const SETTINGS_KEY = "chatgptQueueSteer.settings";
 const WORKFLOWS_KEY = "chatgptQueueSteer.workflows";
 
 const VALID_STATUSES: TaskStatus[] = ["pending", "running", "done", "failed", "skipped"];
+const VALID_RUN_LOG_STATUSES: QueueRunLogStatus[] = ["started", "done", "failed", "retrying", "skipped"];
+const MAX_RUN_LOG_ENTRIES = 100;
 
 export const DEFAULT_SETTINGS: QueueSettings = {
   autoStartNext: true,
   stableDelayMs: 2000,
   maxWaitMs: 10 * 60 * 1000,
+  autoRetryEnabled: false,
+  maxAutoRetries: 1,
+  retryDelayMs: 3000,
   appendContextMode: true,
   batchSeparator: "---",
   theme: "page",
@@ -114,8 +128,50 @@ function normalizeTask(value: unknown): QueueTask | null {
     createdAt: typeof value.createdAt === "number" ? value.createdAt : now,
     updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : now,
     error: typeof value.error === "string" ? value.error : undefined,
-    resultSummary: typeof value.resultSummary === "string" ? value.resultSummary : undefined
+    resultSummary: typeof value.resultSummary === "string" ? value.resultSummary : undefined,
+    attemptCount: normalizeNumber(value.attemptCount, 0, 0, 100) || undefined,
+    lastAttemptAt: typeof value.lastAttemptAt === "number" ? value.lastAttemptAt : undefined
   };
+}
+
+function normalizeRunLogEntry(value: unknown): QueueRunLogEntry | null {
+  if (!isObject(value)) {
+    return null;
+  }
+
+  const taskId = typeof value.taskId === "string" && value.taskId ? value.taskId : "";
+  const promptPreview = typeof value.promptPreview === "string" ? value.promptPreview : "";
+  if (!taskId || !promptPreview) {
+    return null;
+  }
+
+  const now = Date.now();
+  const status = VALID_RUN_LOG_STATUSES.includes(value.status as QueueRunLogStatus)
+    ? (value.status as QueueRunLogStatus)
+    : "failed";
+
+  return {
+    id: typeof value.id === "string" && value.id ? value.id : `${now}-${Math.random().toString(36).slice(2)}`,
+    taskId,
+    promptPreview,
+    status,
+    provider: typeof value.provider === "string" && value.provider ? value.provider : "Unknown",
+    startedAt: typeof value.startedAt === "number" ? value.startedAt : now,
+    endedAt: typeof value.endedAt === "number" ? value.endedAt : undefined,
+    attemptCount: normalizeNumber(value.attemptCount, 1, 1, 100),
+    error: typeof value.error === "string" ? value.error : undefined
+  };
+}
+
+function normalizeRunLog(value: unknown): QueueRunLogEntry[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return value
+    .map(normalizeRunLogEntry)
+    .filter((entry): entry is QueueRunLogEntry => Boolean(entry))
+    .slice(-MAX_RUN_LOG_ENTRIES);
 }
 
 function normalizeWorkflowMessage(value: unknown): WorkflowMessage | null {
@@ -189,6 +245,9 @@ function normalizeSettings(value: unknown): QueueSettings {
     autoStartNext: typeof value.autoStartNext === "boolean" ? value.autoStartNext : DEFAULT_SETTINGS.autoStartNext,
     stableDelayMs: normalizeNumber(value.stableDelayMs, DEFAULT_SETTINGS.stableDelayMs, 500, 30000),
     maxWaitMs: normalizeNumber(value.maxWaitMs, DEFAULT_SETTINGS.maxWaitMs, 5000, 60 * 60 * 1000),
+    autoRetryEnabled: typeof value.autoRetryEnabled === "boolean" ? value.autoRetryEnabled : DEFAULT_SETTINGS.autoRetryEnabled,
+    maxAutoRetries: normalizeNumber(value.maxAutoRetries, DEFAULT_SETTINGS.maxAutoRetries, 0, 5),
+    retryDelayMs: normalizeNumber(value.retryDelayMs, DEFAULT_SETTINGS.retryDelayMs, 500, 60000),
     appendContextMode: typeof value.appendContextMode === "boolean" ? value.appendContextMode : DEFAULT_SETTINGS.appendContextMode,
     batchSeparator: typeof value.batchSeparator === "string" && value.batchSeparator.trim()
       ? value.batchSeparator
@@ -257,7 +316,8 @@ function normalizeState(value: unknown, normalizeReload: boolean): QueueState {
         ? value.currentTaskId
         : undefined,
     lastError: typeof value.lastError === "string" ? value.lastError : undefined,
-    reloadWarning
+    reloadWarning,
+    runLog: normalizeRunLog(value.runLog)
   };
 }
 

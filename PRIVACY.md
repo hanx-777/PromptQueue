@@ -34,8 +34,11 @@ PromptQueue stores the following data only in `chrome.storage.local` on your dev
 - panel collapsed state and panel width
 - provider model preferences
 - recent error or reload warning state
+- local run log entries with task status, provider, timestamps, attempt counts, errors, and prompt previews
 
 Text Compare input is session-only. The original and revised text you paste into the Compare tab is kept only in the current page session state and is not written to `chrome.storage.local`.
+
+Workflow variable values are also session-only. They are used to create ordinary queue messages when you run a workflow and are not stored as separate variable history.
 
 You can remove this data by clearing the extension storage, uninstalling the extension, or using the extension's queue/workflow clear controls.
 
@@ -106,8 +109,11 @@ PromptQueue 只会在你设备上的 `chrome.storage.local` 中保存以下数�
 - 面板折叠状态和面板宽度
 - 各 AI 页面的默认模型偏好
 - 最近一次错误或刷新中断提示
+- 本地运行记录，包括任务状态、服务商、时间、尝试次数、错误和 prompt 预览
 
 文本对比输入只保存在当前页面会话中。你粘贴到“对比”标签页的原文和新版文本不会写入 `chrome.storage.local`。
+
+工作流变量值也只在当前会话中使用。它们会在运行工作流时生成普通队列消息，不会作为单独的变量历史保存。
 
 你可以通过清空扩展存储、卸载扩展，或使用扩展内的队列/工作流清理功能删除这些数据。
 

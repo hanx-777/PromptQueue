@@ -22,6 +22,8 @@ export interface QueueTask {
   updatedAt: number;
   error?: string;
   resultSummary?: string;
+  attemptCount?: number;
+  lastAttemptAt?: number;
 }
 
 export interface WorkflowMessage {
@@ -43,6 +45,9 @@ export interface QueueSettings {
   autoStartNext: boolean;
   stableDelayMs: number;
   maxWaitMs: number;
+  autoRetryEnabled: boolean;
+  maxAutoRetries: number;
+  retryDelayMs: number;
   appendContextMode: boolean;
   batchSeparator: string;
   theme: QueueTheme;
@@ -52,6 +57,20 @@ export interface QueueSettings {
   panelWidth: number;
 }
 
+export type QueueRunLogStatus = "started" | "done" | "failed" | "retrying" | "skipped";
+
+export interface QueueRunLogEntry {
+  id: string;
+  taskId: string;
+  promptPreview: string;
+  status: QueueRunLogStatus;
+  provider: string;
+  startedAt: number;
+  endedAt?: number;
+  attemptCount: number;
+  error?: string;
+}
+
 export interface QueueState {
   tasks: QueueTask[];
   isRunning: boolean;
@@ -59,4 +78,5 @@ export interface QueueState {
   currentTaskId?: string;
   lastError?: string;
   reloadWarning?: string;
+  runLog?: QueueRunLogEntry[];
 }

@@ -1,12 +1,14 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import type { Texts } from "../content/i18n";
-import { diffTexts, getDiffStats, type DiffLine, type DiffPart } from "../utils/textDiff";
+import type { Language } from "../content/i18n";
+import { diffTexts, formatDiffSummary, getDiffStats, type DiffLine, type DiffPart } from "../utils/textDiff";
 import { ClearIcon, SwapIcon } from "./Icons";
 
 interface TextComparePanelProps {
   texts: Texts;
   oldText: string;
   newText: string;
+  language: Language;
   onOldTextChange: (text: string) => void;
   onNewTextChange: (text: string) => void;
 }
@@ -117,11 +119,13 @@ export function TextComparePanel({
   texts,
   oldText,
   newText,
+  language,
   onOldTextChange,
   onNewTextChange
 }: TextComparePanelProps): JSX.Element {
   const panelRef = useRef<HTMLElement | null>(null);
   const [useSplitView, setUseSplitView] = useState(false);
+  const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const deferredOldText = useDeferredValue(oldText);
   const deferredNewText = useDeferredValue(newText);
   const diffLines = useMemo(() => diffTexts(deferredOldText, deferredNewText), [deferredOldText, deferredNewText]);
@@ -160,6 +164,15 @@ export function TextComparePanel({
   const swap = (): void => {
     onOldTextChange(newText);
     onNewTextChange(oldText);
+  };
+
+  const copySummary = async (): Promise<void> => {
+    try {
+      await navigator.clipboard.writeText(formatDiffSummary(diffLines, language));
+      setCopyMessage(texts.compareSummaryCopied);
+    } catch {
+      setCopyMessage(texts.compareSummaryCopyFailed);
+    }
   };
 
   return (
@@ -202,6 +215,9 @@ export function TextComparePanel({
           </div>
 
           <div className="compare-actions">
+            <button type="button" className="secondary icon-text-action" onClick={() => void copySummary()} disabled={!hasChanges}>
+              <span>{texts.compareCopySummary}</span>
+            </button>
             <button type="button" className="secondary icon-text-action" onClick={swap} disabled={!hasInput}>
               <SwapIcon />
               <span>{texts.compareSwap}</span>
@@ -212,6 +228,8 @@ export function TextComparePanel({
             </button>
           </div>
         </div>
+
+        {copyMessage ? <div className="compare-copy-message">{copyMessage}</div> : null}
 
         <div className="compare-legend" aria-label={texts.compareLegendLabel}>
           <span><mark className="legend-mark legend-insert">+</mark>{texts.compareLegendAdded}</span>

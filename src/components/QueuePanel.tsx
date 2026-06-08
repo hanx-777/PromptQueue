@@ -14,9 +14,16 @@ import {
   subscribeStorageChanges
 } from "../content/storage";
 import type { QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "../content/types";
+import { BUILT_IN_WORKFLOW_TEMPLATES, createWorkflowFromTemplate, type BuiltInWorkflowTemplate } from "../content/workflowTemplates";
 import { getCurrentProvider } from "../content/providers";
 import { clamp, createId, readEditableText } from "../utils/dom";
 import { getErrorMessage } from "../utils/logger";
+import { formatRunLogMarkdown } from "../utils/runLog";
+import {
+  applyWorkflowVariablesToMessages,
+  extractWorkflowVariables,
+  type WorkflowVariableValues
+} from "../utils/workflowVariables";
 import { CollapseIcon, ExpandIcon, SettingsIcon } from "./Icons";
 import { NativeQueueDock } from "./NativeQueueDock";
 import { SettingsPanel } from "./SettingsPanel";
@@ -66,6 +73,10 @@ function makeWorkflow(name: string, messages: WorkflowMessage[]): QueueWorkflow 
     createdAt: timestamp,
     updatedAt: timestamp
   };
+}
+
+async function writeClipboardText(text: string): Promise<void> {
+  await navigator.clipboard.writeText(text);
 }
 
 function splitPrompts(raw: string, customSeparator: string): string[] {
@@ -346,6 +357,9 @@ export function QueuePanel(): JSX.Element {
   const [saveWorkflowOpen, setSaveWorkflowOpen] = useState(false);
   const [workflowNameDraft, setWorkflowNameDraft] = useState("");
   const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [pendingVariableWorkflow, setPendingVariableWorkflow] = useState<QueueWorkflow | null>(null);
+  const [workflowVariableValues, setWorkflowVariableValues] = useState<WorkflowVariableValues>({});
   const [draggedWorkflowId, setDraggedWorkflowId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [queueActionBusy, setQueueActionBusy] = useState(false);
@@ -624,6 +638,12 @@ export function QueuePanel(): JSX.Element {
       ? `${texts.running}${runningIndex ? ` #${runningIndex}` : ""}`
       : texts.idle;
   const queuePrimaryLabel = state.isPaused ? texts.resume : state.isRunning ? texts.pause : texts.startQueue;
+  const runLogEntries = state.runLog ?? [];
+  const pendingWorkflowVariables = useMemo(
+    () => pendingVariableWorkflow ? extractWorkflowVariables(pendingVariableWorkflow.messages) : [],
+    [pendingVariableWorkflow]
+  );
+  const variablesReady = pendingWorkflowVariables.every((name) => workflowVariableValues[name]?.trim());
 
   const updateTasks = async (tasks: QueueTask[], patch: Partial<QueueState> = {}): Promise<void> => {
     await persistState({
@@ -665,15 +685,25 @@ export function QueuePanel(): JSX.Element {
   };
 
   const handleTaskSkip = (id: string): void => {
-    void updateTasks(state.tasks.map((task) => (
-      task.id === id && task.status === "pending"
-        ? { ...task, status: "skipped", updatedAt: now(), error: undefined }
-        : task
-    )));
+    runnerRef.current.skipTask(id);
   };
 
   const handleTaskRetry = (id: string): void => {
     void runBusy("retry-task", () => runnerRef.current.retryTask(id));
+  };
+
+  const clearRunLog = async (): Promise<void> => {
+    const latest = await loadState();
+    await persistState({ ...latest, runLog: [] });
+  };
+
+  const copyRunLog = async (): Promise<void> => {
+    try {
+      await writeClipboardText(formatRunLogMarkdown(runLogEntries));
+      setLocalMessage(texts.runLogCopied);
+    } catch {
+      setLocalMessage(texts.runLogCopyFailed);
+    }
   };
 
   const prioritizeTaskAndStopCurrent = async (id: string): Promise<void> => {
@@ -799,9 +829,12 @@ export function QueuePanel(): JSX.Element {
     tasks.map((task) => makeWorkflowMessage(task.prompt))
   );
 
-  const tasksFromWorkflow = (workflow: QueueWorkflow): QueueTask[] => (
-    workflow.messages.map((message) => makeTask(message.prompt))
-  );
+  const tasksFromWorkflow = (workflow: QueueWorkflow, values?: WorkflowVariableValues): QueueTask[] => {
+    const messages = values
+      ? applyWorkflowVariablesToMessages(workflow.messages, values)
+      : workflow.messages;
+    return messages.map((message) => makeTask(message.prompt));
+  };
 
   const exportWorkflowFile = (workflow: QueueWorkflow): void => {
     const exportedAt = new Date().toISOString();
@@ -883,6 +916,18 @@ export function QueuePanel(): JSX.Element {
     setLocalMessage(`${texts.workflowImported}: ${name}`);
   };
 
+  const addWorkflowTemplate = async (template: BuiltInWorkflowTemplate): Promise<void> => {
+    const latestWorkflows = await loadWorkflows();
+    const workflow = createWorkflowFromTemplate(
+      template,
+      latestWorkflows.map((item) => item.name)
+    );
+    await persistWorkflows([...latestWorkflows, workflow]);
+    setExpandedWorkflowId(workflow.id);
+    setTemplatesOpen(false);
+    setLocalMessage(`${texts.workflowTemplateAdded}: ${workflow.name}`);
+  };
+
   const renameWorkflow = async (id: string, name: string): Promise<void> => {
     const uniqueName = getUniqueWorkflowName(name, workflows, id);
     await persistWorkflows(workflows.map((workflow) => (
@@ -914,11 +959,7 @@ export function QueuePanel(): JSX.Element {
     setDraggedWorkflowId(null);
   };
 
-  const runWorkflow = async (id: string): Promise<void> => {
-    const workflow = workflows.find((item) => item.id === id);
-    if (!workflow) {
-      return;
-    }
+  const runWorkflowWithValues = async (workflow: QueueWorkflow, values?: WorkflowVariableValues): Promise<void> => {
     const latest = await loadState();
     if (latest.isRunning || latest.currentTaskId) {
       throw new Error(texts.workflowRunBlocked);
@@ -926,12 +967,42 @@ export function QueuePanel(): JSX.Element {
 
     await persistStateAndRunQueue({
       ...latest,
-      tasks: tasksFromWorkflow(workflow),
+      tasks: tasksFromWorkflow(workflow, values),
       currentTaskId: undefined,
       lastError: undefined
     });
     setActiveSection("run");
     setExpandedWorkflowId(null);
+    setPendingVariableWorkflow(null);
+    setWorkflowVariableValues({});
+  };
+
+  const runWorkflow = async (id: string): Promise<void> => {
+    const workflow = workflows.find((item) => item.id === id);
+    if (!workflow) {
+      return;
+    }
+
+    const latest = await loadState();
+    if (latest.isRunning || latest.currentTaskId) {
+      throw new Error(texts.workflowRunBlocked);
+    }
+
+    const variables = extractWorkflowVariables(workflow.messages);
+    if (variables.length) {
+      setPendingVariableWorkflow(workflow);
+      setWorkflowVariableValues(Object.fromEntries(variables.map((name) => [name, ""])));
+      return;
+    }
+
+    await runWorkflowWithValues(workflow);
+  };
+
+  const submitWorkflowVariables = async (): Promise<void> => {
+    if (!pendingVariableWorkflow) {
+      return;
+    }
+    await runWorkflowWithValues(pendingVariableWorkflow, workflowVariableValues);
   };
 
   const exportWorkflowById = (id: string): void => {
@@ -1178,6 +1249,45 @@ export function QueuePanel(): JSX.Element {
               )}
             </section>
 
+            <section className="run-log-panel" aria-label={texts.runLogTitle}>
+              <div className="section-title-row compact">
+                <h2>{texts.runLogTitle}</h2>
+                <div className="section-title-actions">
+                  <button
+                    type="button"
+                    className="secondary mini-action"
+                    onClick={() => void copyRunLog()}
+                    disabled={!runLogEntries.length}
+                  >
+                    {texts.copyRunLog}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary mini-action"
+                    onClick={() => void runBusy("clear-run-log", clearRunLog)}
+                    disabled={!runLogEntries.length || Boolean(busyAction)}
+                  >
+                    {texts.clearRunLog}
+                  </button>
+                </div>
+              </div>
+              {runLogEntries.length ? (
+                <div className="run-log-list">
+                  {runLogEntries.slice(-6).reverse().map((entry) => (
+                    <div className={`run-log-entry run-log-entry-${entry.status}`} key={entry.id}>
+                      <span className="run-log-status">{entry.status}</span>
+                      <span className="run-log-prompt">{entry.promptPreview}</span>
+                      <span className="run-log-meta">
+                        {entry.provider} · {texts.runLogAttempt} {entry.attemptCount}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state compact-empty">{texts.runLogEmpty}</div>
+              )}
+            </section>
+
             <div className="run-bottom-stack">
               <SteerBox
                 settings={settings}
@@ -1270,11 +1380,34 @@ export function QueuePanel(): JSX.Element {
             <div className="section-title-row compact sticky-title">
               <h2>{texts.workflowLabel}</h2>
               <div className="section-title-actions">
+                <button type="button" className="secondary mini-action" onClick={() => setTemplatesOpen((value) => !value)}>
+                  {templatesOpen ? texts.hideWorkflowTemplates : texts.addWorkflowTemplates}
+                </button>
                 <button type="button" className="secondary mini-action" onClick={() => fileInputRef.current?.click()}>
                   {texts.importWorkflow}
                 </button>
               </div>
             </div>
+            {templatesOpen ? (
+              <div className="workflow-template-list" aria-label={texts.workflowTemplatesTitle}>
+                {BUILT_IN_WORKFLOW_TEMPLATES.map((template) => (
+                  <article className="workflow-template-item" key={template.id}>
+                    <div>
+                      <strong>{template.name}</strong>
+                      <span>{template.description}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary mini-action"
+                      onClick={() => void runBusy("add-template", () => addWorkflowTemplate(template))}
+                      disabled={Boolean(busyAction)}
+                    >
+                      {texts.addWorkflowTemplate}
+                    </button>
+                  </article>
+                ))}
+              </div>
+            ) : null}
             {workflows.length ? (
               workflows.map((workflow) => (
                 <WorkflowCard
@@ -1311,6 +1444,7 @@ export function QueuePanel(): JSX.Element {
             texts={texts}
             oldText={compareOldText}
             newText={compareNewText}
+            language={settings.language}
             onOldTextChange={setCompareOldText}
             onNewTextChange={setCompareNewText}
           />
@@ -1355,6 +1489,55 @@ export function QueuePanel(): JSX.Element {
               ) : null}
             </div>
           </section>
+        ) : null}
+
+        {pendingVariableWorkflow ? (
+          <div className="workflow-variable-backdrop" role="presentation">
+            <section
+              className="workflow-variable-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-label={texts.workflowVariablesTitle}
+            >
+              <div className="section-title-row compact">
+                <h2>{texts.workflowVariablesTitle}</h2>
+                <button
+                  type="button"
+                  className="secondary mini-action"
+                  onClick={() => {
+                    setPendingVariableWorkflow(null);
+                    setWorkflowVariableValues({});
+                  }}
+                >
+                  {texts.cancel}
+                </button>
+              </div>
+              <p className="helper-text">{texts.workflowVariablesHint}</p>
+              <div className="workflow-variable-list">
+                {pendingWorkflowVariables.map((name) => (
+                  <label className="field" key={name}>
+                    <span>{name}</span>
+                    <input
+                      type="text"
+                      value={workflowVariableValues[name] ?? ""}
+                      onChange={(event) => setWorkflowVariableValues((current) => ({
+                        ...current,
+                        [name]: event.target.value
+                      }))}
+                      placeholder={`${texts.workflowVariablePlaceholder} ${name}`}
+                    />
+                  </label>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => void runBusy("run-workflow-vars", submitWorkflowVariables)}
+                disabled={Boolean(busyAction) || !variablesReady}
+              >
+                {texts.runWithVariables}
+              </button>
+            </section>
+          </div>
         ) : null}
 
         <input

@@ -106,6 +106,41 @@ export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPa
         />
       </label>
 
+      <label className="setting-row">
+        <span>{texts.autoRetryEnabled}</span>
+        <input
+          type="checkbox"
+          checked={settings.autoRetryEnabled}
+          onChange={(event) => update("autoRetryEnabled", event.target.checked)}
+        />
+      </label>
+
+      <label className="field">
+        <span>{texts.maxAutoRetries}</span>
+        <input
+          type="number"
+          min={0}
+          max={5}
+          step={1}
+          value={settings.maxAutoRetries}
+          onChange={(event) => update("maxAutoRetries", Number(event.target.value))}
+          disabled={!settings.autoRetryEnabled}
+        />
+      </label>
+
+      <label className="field">
+        <span>{texts.retryDelayMs}</span>
+        <input
+          type="number"
+          min={500}
+          max={60000}
+          step={500}
+          value={settings.retryDelayMs}
+          onChange={(event) => update("retryDelayMs", Number(event.target.value))}
+          disabled={!settings.autoRetryEnabled}
+        />
+      </label>
+
       <label className="field">
         <span>{texts.batchSeparator}</span>
         <input
