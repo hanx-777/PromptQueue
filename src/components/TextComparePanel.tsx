@@ -1,8 +1,8 @@
 import { useDeferredValue, useMemo, useState } from "react";
 import type { Texts } from "../content/i18n";
 import type { Language } from "../content/i18n";
-import { diffTexts, formatDiffSummary, getDiffStats, type DiffLine, type DiffOptions, type DiffPart } from "../utils/textDiff";
-import { ClearIcon, CopyIcon, SwapIcon } from "./Icons";
+import { diffTexts, filterDiffLinesWithContext, formatDiffSummary, getDiffStats, type DiffLine, type DiffOptions, type DiffPart } from "../utils/textDiff";
+import { ClearIcon, CloseIcon, CopyIcon, SwapIcon } from "./Icons";
 
 interface TextComparePanelProps {
   texts: Texts;
@@ -11,6 +11,7 @@ interface TextComparePanelProps {
   language: Language;
   onOldTextChange: (text: string) => void;
   onNewTextChange: (text: string) => void;
+  onClose?: () => void;
 }
 
 interface TextMetrics {
@@ -20,7 +21,7 @@ interface TextMetrics {
 
 type CompareSide = "old" | "new";
 type CompareViewMode = "row" | "column";
-type ComparePrecision = "line" | "character";
+type ComparePrecision = "line" | "word" | "character";
 
 function getTextMetrics(text: string): TextMetrics {
   return {
@@ -121,10 +122,11 @@ export function TextComparePanel({
   newText,
   language,
   onOldTextChange,
-  onNewTextChange
+  onNewTextChange,
+  onClose
 }: TextComparePanelProps): JSX.Element {
   const [viewMode, setViewMode] = useState<CompareViewMode>("column");
-  const [precision, setPrecision] = useState<ComparePrecision>("character");
+  const [precision, setPrecision] = useState<ComparePrecision>("word");
   const [copyMessage, setCopyMessage] = useState<string | null>(null);
   const [ignoreWhitespace, setIgnoreWhitespace] = useState(false);
   const [ignoreCase, setIgnoreCase] = useState(false);
@@ -138,7 +140,7 @@ export function TextComparePanel({
   }), [ignoreCase, ignoreWhitespace, precision]);
   const diffLines = useMemo(() => diffTexts(deferredOldText, deferredNewText, diffOptions), [deferredOldText, deferredNewText, diffOptions]);
   const visibleDiffLines = useMemo(
-    () => onlyChanges ? diffLines.filter((line) => line.type !== "equal") : diffLines,
+    () => onlyChanges ? filterDiffLinesWithContext(diffLines, 1) : diffLines,
     [diffLines, onlyChanges]
   );
   const stats = useMemo(() => getDiffStats(diffLines), [diffLines]);
@@ -160,7 +162,10 @@ export function TextComparePanel({
 
   const copySummary = async (): Promise<void> => {
     try {
-      await navigator.clipboard.writeText(formatDiffSummary(diffLines, language));
+      await navigator.clipboard.writeText(formatDiffSummary(diffLines, language, {
+        ...diffOptions,
+        onlyChanges
+      }));
       setCopyMessage(texts.compareSummaryCopied);
     } catch {
       setCopyMessage(texts.compareSummaryCopyFailed);
@@ -178,6 +183,14 @@ export function TextComparePanel({
 
   return (
     <section className="panel-section compare-panel" aria-label={texts.navCompare}>
+      {onClose ? (
+        <div className="section-title-row">
+          <h2>{texts.navCompare}</h2>
+          <button type="button" className="icon-button" onClick={onClose} aria-label={texts.closePanel}>
+            <CloseIcon />
+          </button>
+        </div>
+      ) : null}
       <div className="compare-input-grid">
         <label className="compare-field">
           <span className="compare-field-head">
@@ -267,6 +280,14 @@ export function TextComparePanel({
                 onClick={() => setPrecision("line")}
               >
                 {texts.comparePrecisionLine}
+              </button>
+              <button
+                type="button"
+                className={precision === "word" ? "active" : ""}
+                aria-pressed={precision === "word"}
+                onClick={() => setPrecision("word")}
+              >
+                {texts.comparePrecisionWord}
               </button>
               <button
                 type="button"

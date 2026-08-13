@@ -2,7 +2,7 @@ import { isHTMLElement, isVisible, uniqueElements } from "../../utils/dom";
 import { delay, dispatchInputLikeEvents, waitFor } from "../../utils/events";
 import { resolveModelSelectionTarget } from "../modelSettings";
 import type { ProviderModelKey, ProviderModelPreference } from "../types";
-import type { ModelSelectionResult, ProviderAdapter, ProviderGenerationSnapshot, ProviderId } from "./types";
+import type { AssistantMessage, ModelSelectionResult, ProviderAdapter, ProviderGenerationSnapshot, ProviderId } from "./types";
 
 interface DomProviderConfig {
   id: ProviderId;
@@ -90,6 +90,42 @@ function normalizedText(element: Element): string {
   return textHaystack(element).replace(/\s+/g, " ").trim();
 }
 
+const ASSISTANT_TEXT_NOISE_LINES = new Set([
+  "copy", "copy code", "copied", "edit", "regenerate", "retry", "share", "read aloud", "like", "dislike",
+  "defining the output",
+  "chatgpt says", "gemini says", "claude says", "assistant says",
+  "复制", "复制代码", "已复制", "编辑", "重新生成", "重试", "分享", "朗读", "赞", "踩",
+  "chatgpt 说", "chatgpt 说：", "gemini 说", "gemini 说：", "claude 说", "claude 说："
+]);
+
+const USER_MESSAGE_PREFIX_PATTERNS = [
+  /^you said\b/i,
+  /^user said\b/i,
+  /^you\s*[:：]/i,
+  /^user\s*[:：]/i,
+  /^\u4f60\u8bf4(?:\s|[:：]|$)/,
+  /^\u7528\u6237\s*[:：]?/
+];
+
+export function cleanAssistantText(raw: string): string {
+  return raw
+    .split("\n")
+    .map((line) => line.replace(/\s+$/, ""))
+    .filter((line) => !ASSISTANT_TEXT_NOISE_LINES.has(line.trim().toLowerCase()))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+export function isLikelyUserAuthoredMessageText(raw: string): boolean {
+  const firstLine = raw
+    .split("\n")
+    .map((line) => line.trim())
+    .find(Boolean) ?? "";
+
+  return USER_MESSAGE_PREFIX_PATTERNS.some((pattern) => pattern.test(firstLine));
+}
+
 function isUsableComposer(element: HTMLElement): boolean {
   if (!isVisible(element)) {
     return false;
@@ -170,11 +206,12 @@ function isComposerReadyElement(element: HTMLElement | null): boolean {
 function scoreSendButton(button: HTMLButtonElement, composer: HTMLElement | null, config: DomProviderConfig): number {
   let score = 0;
   const haystack = textHaystack(button);
+  const hasSendIntent = config.sendPositiveWords.some((word) => haystack.includes(word.toLowerCase()));
 
-  if (config.sendPositiveWords.some((word) => haystack.includes(word.toLowerCase()))) score += 42;
-  if (button.type === "submit") score += 22;
-  if (button.closest("form")) score += 10;
-  if (composer && button.closest("form") === composer.closest("form")) score += 34;
+  if (hasSendIntent) score += 60;
+  if (button.type === "submit") score += hasSendIntent ? 22 : 8;
+  if (button.closest("form")) score += hasSendIntent ? 10 : 4;
+  if (composer && button.closest("form") === composer.closest("form")) score += hasSendIntent ? 34 : 8;
   if (config.notSendWords.some((word) => haystack.includes(word.toLowerCase()))) score -= 100;
 
   const rect = button.getBoundingClientRect();
@@ -212,13 +249,38 @@ function setContentEditableValue(element: HTMLElement, text: string): void {
   const selection = window.getSelection();
   const range = document.createRange();
 
-  element.textContent = text;
+  element.focus();
+  range.selectNodeContents(element);
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+
+  const inserted = document.execCommand?.("insertText", false, text) ?? false;
+  if (!inserted || !readElementText(element).includes(text)) {
+    element.textContent = text;
+  }
+
   range.selectNodeContents(element);
   range.collapse(false);
   selection?.removeAllRanges();
   selection?.addRange(range);
 
   dispatchInputLikeEvents(element, text);
+}
+
+function readElementText(element: HTMLElement): string {
+  return element instanceof HTMLTextAreaElement ? element.value : element.innerText ?? element.textContent ?? "";
+}
+
+function clickButtonLikeUser(button: HTMLButtonElement): void {
+  button.scrollIntoView({ block: "center", inline: "center" });
+  button.focus();
+
+  const pointerEvent = typeof PointerEvent === "function" ? PointerEvent : MouseEvent;
+  button.dispatchEvent(new pointerEvent("pointerdown", { bubbles: true, cancelable: true, button: 0, buttons: 1 }));
+  button.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true, button: 0, buttons: 1 }));
+  button.dispatchEvent(new pointerEvent("pointerup", { bubbles: true, cancelable: true, button: 0, buttons: 0 }));
+  button.dispatchEvent(new MouseEvent("mouseup", { bubbles: true, cancelable: true, button: 0, buttons: 0 }));
+  button.click();
 }
 
 async function focusComposer(composer: HTMLElement): Promise<void> {
@@ -255,7 +317,8 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
 
     const explicitCandidates = uniqueElements(selectorButtons)
       .filter(isEnabledButton)
-      .filter((button) => !includesAny(button, config.notSendWords));
+      .filter((button) => !includesAny(button, config.notSendWords))
+      .filter((button) => scoreSendButton(button, composer, config) >= 38);
 
     if (explicitCandidates.length) {
       return explicitCandidates.sort((a, b) => scoreSendButton(b, composer, config) - scoreSendButton(a, composer, config))[0] ?? null;
@@ -264,7 +327,7 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     const fallbackCandidates = uniqueElements([...scopedButtons, ...nearbyButtons])
       .filter(isEnabledButton)
       .filter((button) => !includesAny(button, config.notSendWords))
-      .filter((button) => button.type === "submit" || scoreSendButton(button, composer, config) >= 38);
+      .filter((button) => scoreSendButton(button, composer, config) >= 38);
 
     return fallbackCandidates.sort((a, b) => scoreSendButton(b, composer, config) - scoreSendButton(a, composer, config))[0] ?? null;
   }
@@ -389,12 +452,12 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
   }
 
   async function clickSend(): Promise<void> {
-    const button = await waitFor(findSendButton, { timeoutMs: 2500, intervalMs: 100 });
+    const button = await waitFor(findSendButton, { timeoutMs: 7000, intervalMs: 100 });
     if (!button) {
       throw new Error(config.sendError);
     }
 
-    button.click();
+    clickButtonLikeUser(button);
     await delay(100);
   }
 
@@ -415,16 +478,36 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     return main ?? document.body;
   }
 
-  function findLastAssistantContentRoot(): HTMLElement | null {
+  function getAssistantContentRoots(): HTMLElement[] {
     const selectorCandidates = config.assistantSelectors.flatMap((selector) => queryAll<HTMLElement>(selector));
     const genericCandidates = queryAll<HTMLElement>(
       "[data-message-author-role='assistant'], [data-testid*='assistant' i], article, [role='article']"
     );
-    const candidates = uniqueElements([...selectorCandidates, ...genericCandidates])
+    return uniqueElements([...selectorCandidates, ...genericCandidates])
       .filter((element) => isVisible(element))
-      .filter((element) => normalizedText(element).length > 0 || element.querySelector("img, picture, video, canvas, svg"));
+      .filter((element) => {
+        const text = cleanAssistantText(element.innerText ?? element.textContent ?? "");
+        return (
+          (text.length > 0 && !isLikelyUserAuthoredMessageText(text)) ||
+          element.querySelector("img, picture, video, canvas, svg")
+        );
+      });
+  }
+
+  function findLastAssistantContentRoot(): HTMLElement | null {
+    const candidates = getAssistantContentRoots();
 
     return candidates[candidates.length - 1] ?? null;
+  }
+
+  function getLastAssistantMessage(): AssistantMessage | null {
+    const root = findLastAssistantContentRoot();
+    if (!root) {
+      return null;
+    }
+
+    const text = cleanAssistantText(root.innerText ?? root.textContent ?? "");
+    return text ? { text } : null;
   }
 
   function countGeneratingIndicators(): number {
@@ -466,7 +549,8 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     const composer = findComposer();
     const sendButton = findSendButton();
     const stopButton = findStopButton();
-    const assistantRoot = findLastAssistantContentRoot();
+    const assistantRoots = getAssistantContentRoots();
+    const assistantRoot = assistantRoots[assistantRoots.length - 1] ?? null;
     const assistantText = assistantRoot?.innerText?.replace(/\s+/g, " ").trim() ?? "";
     const mediaCount = assistantRoot?.querySelectorAll("img, picture, video, canvas, svg").length ?? 0;
     const structuredBusyIndicators = countStructuredBusyIndicators(assistantRoot);
@@ -480,7 +564,8 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
       pendingMedia: hasPendingMediaGeneration(assistantRoot),
       assistantSignature: `${assistantText.length}:${mediaCount}:${assistantRoot?.textContent?.length ?? 0}`,
       assistantTextLength: assistantText.length,
-      assistantMediaCount: mediaCount
+      assistantMediaCount: mediaCount,
+      assistantMessageCount: assistantRoots.length
     };
   }
 
@@ -536,6 +621,7 @@ export function createDomProvider(config: DomProviderConfig): ProviderAdapter {
     isGenerating: () => Boolean(findStopButton()),
     findMainArea,
     getGenerationSnapshot,
-    selectModel
+    selectModel,
+    getLastAssistantMessage
   };
 }

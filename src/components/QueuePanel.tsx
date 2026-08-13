@@ -8,7 +8,7 @@ import {
   normalizePendingContextActions,
   savePendingContextActions
 } from "../content/contextActions";
-import { detectProviderHardBusy, hasActiveQueue } from "../content/providerRuntime";
+import { detectProviderHardBusy, getProviderHealthStatus, hasActiveQueue } from "../content/providerRuntime";
 import { QueueRunner } from "../content/queueRunner";
 import {
   DEFAULT_SETTINGS,
@@ -21,18 +21,23 @@ import {
   saveWorkflows,
   subscribeStorageChanges
 } from "../content/storage";
-import type { PendingContextAction, QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "../content/types";
+import type { PendingContextAction, ProviderHealthStatus, QueueSettings, QueueState, QueueTask, QueueWorkflow, TaskStatus, WorkflowMessage } from "../content/types";
 import { BUILT_IN_WORKFLOW_TEMPLATES, createWorkflowFromTemplate, type BuiltInWorkflowTemplate } from "../content/workflowTemplates";
-import { getCurrentProvider } from "../content/providers";
-import { clamp, createId, readEditableText } from "../utils/dom";
+import { getCurrentProvider, getCurrentProviderLabel } from "../content/providers";
+import { runFanoutPrompt } from "../content/fanout";
+import { clamp, createId, previewPrompt, readEditableText } from "../utils/dom";
 import { getErrorMessage } from "../utils/logger";
 import { formatRunLogMarkdown } from "../utils/runLog";
+import { formatTaskResultsMarkdown, getDoneTasks } from "../utils/taskResults";
+import { createFanoutResultRows, summarizeFanoutResults, type FanoutResult } from "../utils/fanoutResults";
 import {
   applyWorkflowVariablesToMessages,
   extractWorkflowVariables,
   type WorkflowVariableValues
 } from "../utils/workflowVariables";
-import { CollapseIcon, ExpandIcon, SettingsIcon } from "./Icons";
+import { getIncompleteRowCount, getMissingVariableColumns, parseVariableTable } from "../utils/csvVariables";
+import { copyWorkflow, filterWorkflows, normalizeWorkflowTags } from "../utils/workflows";
+import { CollapseIcon, ExpandIcon, SettingsIcon, SwapIcon } from "./Icons";
 import { NativeQueueDock } from "./NativeQueueDock";
 import { SettingsPanel } from "./SettingsPanel";
 import { SteerBox } from "./SteerBox";
@@ -40,11 +45,9 @@ import { TaskItem } from "./TaskItem";
 import { TextComparePanel } from "./TextComparePanel";
 import { WorkflowCard } from "./WorkflowCard";
 
-type PanelSection = "run" | "compare" | "workflow" | "settings" | "support";
+type PanelSection = "run" | "compare" | "workflow" | "settings";
 type ResolvedTheme = Exclude<QueueSettings["theme"], "page">;
 
-const GITHUB_REPO_URL = "https://github.com/hanx-777/PromptQueue";
-const KOFI_URL = "https://ko-fi.com/hanx1221";
 const DARK_THEME_QUERY = "(prefers-color-scheme: dark)";
 
 function now(): number {
@@ -72,12 +75,13 @@ function makeWorkflowMessage(prompt: string): WorkflowMessage {
   };
 }
 
-function makeWorkflow(name: string, messages: WorkflowMessage[]): QueueWorkflow {
+function makeWorkflow(name: string, messages: WorkflowMessage[], tags: string[] = []): QueueWorkflow {
   const timestamp = now();
   return {
     id: createId(),
     name,
     messages,
+    tags: normalizeWorkflowTags(tags),
     createdAt: timestamp,
     updatedAt: timestamp
   };
@@ -191,6 +195,18 @@ function getImportedWorkflowName(value: unknown, fallbackName: string): string {
   return fallbackName;
 }
 
+function getImportedWorkflowTags(value: unknown): string[] {
+  if (isRecord(value)) {
+    if (Array.isArray(value.tags)) {
+      return normalizeWorkflowTags(value.tags);
+    }
+    if (isRecord(value.workflow) && Array.isArray(value.workflow.tags)) {
+      return normalizeWorkflowTags(value.workflow.tags);
+    }
+  }
+  return [];
+}
+
 function getUniqueWorkflowName(name: string, workflows: QueueWorkflow[], excludeId?: string): string {
   const baseName = name.trim() || "Untitled Workflow";
   const existingNames = new Set(
@@ -214,15 +230,34 @@ function getUniqueWorkflowName(name: string, workflows: QueueWorkflow[], exclude
 function getSections(texts: Texts): Array<{ id: PanelSection; label: string }> {
   return [
     { id: "run", label: texts.navRun },
-    { id: "compare", label: texts.navCompare },
     { id: "workflow", label: texts.navWorkflow },
-    { id: "settings", label: texts.navSettings },
-    { id: "support", label: texts.navSupport }
+    { id: "settings", label: texts.navSettings }
   ];
 }
 
 function formatCountMessage(template: string, count: number): string {
   return template.replace("{count}", String(count));
+}
+
+function formatFanoutSummary(
+  template: string,
+  summary: ReturnType<typeof summarizeFanoutResults>
+): string {
+  return template
+    .replace("{pending}", String(summary.pending))
+    .replace("{done}", String(summary.done))
+    .replace("{failed}", String(summary.error))
+    .replace("{total}", String(summary.total));
+}
+
+/** Accessible name for a health chip. The chip itself renders only its label,
+ *  so the state has to reach assistive tech through aria-label. */
+function healthLabel(label: string, found: boolean, texts: Texts): string {
+  return `${label}: ${found ? texts.providerHealthFound : texts.providerHealthMissing}`;
+}
+
+function healthClassName(found: boolean): string {
+  return found ? "health-ok" : "health-missing";
 }
 
 function getContextActionsFromEvent(event: Event): PendingContextAction[] {
@@ -391,12 +426,19 @@ export function QueuePanel(): JSX.Element {
   const [promptDraft, setPromptDraft] = useState("");
   const [compareOldText, setCompareOldText] = useState("");
   const [compareNewText, setCompareNewText] = useState("");
+  const [fanoutSessionId, setFanoutSessionId] = useState<string | null>(null);
+  const [fanoutResults, setFanoutResults] = useState<FanoutResult[]>([]);
+  const [fanoutBusy, setFanoutBusy] = useState(false);
   const [saveWorkflowOpen, setSaveWorkflowOpen] = useState(false);
   const [workflowNameDraft, setWorkflowNameDraft] = useState("");
   const [expandedWorkflowId, setExpandedWorkflowId] = useState<string | null>(null);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [workflowSearchDraft, setWorkflowSearchDraft] = useState("");
+  const [workflowTagFilter, setWorkflowTagFilter] = useState("");
   const [pendingVariableWorkflow, setPendingVariableWorkflow] = useState<QueueWorkflow | null>(null);
   const [workflowVariableValues, setWorkflowVariableValues] = useState<WorkflowVariableValues>({});
+  const [variableInputMode, setVariableInputMode] = useState<"single" | "table">("single");
+  const [variableTableRaw, setVariableTableRaw] = useState("");
   const [draggedWorkflowId, setDraggedWorkflowId] = useState<string | null>(null);
   const [busyAction, setBusyAction] = useState<string | null>(null);
   const [queueActionBusy, setQueueActionBusy] = useState(false);
@@ -404,6 +446,7 @@ export function QueuePanel(): JSX.Element {
   const [localMessage, setLocalMessage] = useState<string | null>(null);
   const [pageTheme, setPageTheme] = useState<ResolvedTheme>(() => detectPageTheme());
   const [providerBusy, setProviderBusy] = useState(false);
+  const [providerHealth, setProviderHealth] = useState<ProviderHealthStatus>(() => getProviderHealthStatus(getCurrentProvider()));
   const runnerRef = useRef(new QueueRunner());
   const busyRef = useRef(false);
   const queueActionBusyRef = useRef(false);
@@ -419,12 +462,6 @@ export function QueuePanel(): JSX.Element {
   const provider = useMemo(() => getCurrentProvider(), []);
   const providerLabel = provider.label;
   const providerClass = `provider-${provider.id}`;
-  const donateImageUrl = useMemo(() => {
-    if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
-      return chrome.runtime.getURL("assets/donate-wechat.jpg");
-    }
-    return "";
-  }, []);
 
   const refresh = useCallback(async () => {
     const [nextState, nextSettings, nextWorkflows] = await Promise.all([
@@ -445,7 +482,10 @@ export function QueuePanel(): JSX.Element {
   }, [refresh]);
 
   useEffect(() => {
-    const syncProviderBusy = (): void => setProviderBusy(detectProviderHardBusy(provider));
+    const syncProviderBusy = (): void => {
+      setProviderBusy(detectProviderHardBusy(provider));
+      setProviderHealth(getProviderHealthStatus(provider));
+    };
     let frameId: number | null = null;
     const scheduleSync = (): void => {
       if (frameId !== null) {
@@ -615,6 +655,39 @@ export function QueuePanel(): JSX.Element {
     setPromptDraft("");
   }, [persistStateAndRunQueue, promptDraft, settings.batchSeparator, settings.language]);
 
+  const startFanout = useCallback(async () => {
+    const prompt = promptDraft.trim();
+    if (!prompt || typeof chrome === "undefined" || !chrome.runtime?.sendMessage) {
+      return;
+    }
+
+    setFanoutBusy(true);
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "FANOUT_BROADCAST", prompt });
+      if (!response || response.error || !response.fanoutSessionId) {
+        setLocalMessage(typeof response?.error === "string" ? response.error : texts.fanoutBroadcastFailed);
+        return;
+      }
+
+      const providers: string[] = Array.isArray(response.providers) ? response.providers : [];
+      setFanoutSessionId(response.fanoutSessionId);
+      setFanoutResults(createFanoutResultRows(providers, texts.fanoutMissingProvider));
+    } catch (error) {
+      setLocalMessage(getErrorMessage(error));
+    } finally {
+      setFanoutBusy(false);
+    }
+  }, [promptDraft, texts.fanoutBroadcastFailed, texts.fanoutMissingProvider]);
+
+  const useFanoutResultAsCompare = (side: "old" | "new", text: string): void => {
+    if (side === "old") {
+      setCompareOldText(text);
+    } else {
+      setCompareNewText(text);
+    }
+    setActiveSection("compare");
+  };
+
   const addNativeComposerToQueue = useCallback(async () => {
     const composer = provider.findComposer();
     const prompts = splitPrompts(composer ? readEditableText(composer) : "", settings.batchSeparator);
@@ -712,6 +785,77 @@ export function QueuePanel(): JSX.Element {
   }, [enqueueContextActions]);
 
   useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) {
+      return;
+    }
+
+    const fanoutRunHandler = (
+      message: unknown,
+      _sender: chrome.runtime.MessageSender,
+      sendResponse: (response?: { ok: boolean }) => void
+    ): true | false => {
+      if (!isRecord(message) || message.type !== "promptqueue.fanoutRun") {
+        return false;
+      }
+
+      const prompt = typeof message.prompt === "string" ? message.prompt : "";
+      const sessionId = typeof message.fanoutSessionId === "string" ? message.fanoutSessionId : "";
+      if (!prompt || !sessionId) {
+        return false;
+      }
+
+      sendResponse({ ok: true });
+      void runFanoutPrompt(prompt).then((result) => {
+        return chrome.runtime.sendMessage({
+          type: "FANOUT_RESULT",
+          fanoutSessionId: sessionId,
+          provider: getCurrentProviderLabel(),
+          text: result.text,
+          error: result.error
+        });
+      })
+        .catch(() => undefined);
+      return false;
+    };
+
+    chrome.runtime.onMessage.addListener(fanoutRunHandler);
+    return () => {
+      chrome.runtime.onMessage.removeListener(fanoutRunHandler);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof chrome === "undefined" || !chrome.runtime?.onMessage || !fanoutSessionId) {
+      return;
+    }
+
+    const fanoutResultHandler = (message: unknown): false => {
+      if (!isRecord(message) || message.type !== "promptqueue.fanoutResult") {
+        return false;
+      }
+      if (message.fanoutSessionId !== fanoutSessionId) {
+        return false;
+      }
+
+      const provider = typeof message.provider === "string" ? message.provider : "Unknown";
+      const text = typeof message.text === "string" ? message.text : undefined;
+      const error = typeof message.error === "string" ? message.error : undefined;
+
+      setFanoutResults((current) => current.map((item) => (
+        item.provider === provider
+          ? { ...item, status: error ? "error" : "done", text, error }
+          : item
+      )));
+      return false;
+    };
+
+    chrome.runtime.onMessage.addListener(fanoutResultHandler);
+    return () => {
+      chrome.runtime.onMessage.removeListener(fanoutResultHandler);
+    };
+  }, [fanoutSessionId]);
+
+  useEffect(() => {
     const toggleHandler = (): void => {
       void persistSettings({ ...settings, collapsed: !settings.collapsed });
     };
@@ -733,6 +877,7 @@ export function QueuePanel(): JSX.Element {
   }, [addDraftToQueue, addNativeComposerToQueue, persistSettings, runBusy, settings]);
 
   const visibleQueueTasks = useMemo(() => getVisibleQueueTasks(state.tasks), [state.tasks]);
+  const doneQueueTasks = useMemo(() => getDoneTasks(state.tasks), [state.tasks]);
   const counters = useMemo(() => countByStatus(state.tasks), [state.tasks]);
   const runningIndex = state.currentTaskId
     ? state.tasks.findIndex((task) => task.id === state.currentTaskId) + 1
@@ -745,11 +890,77 @@ export function QueuePanel(): JSX.Element {
       : texts.idle;
   const queuePrimaryLabel = state.isPaused ? texts.resume : state.isRunning ? texts.pause : texts.startQueue;
   const runLogEntries = state.runLog ?? [];
+  const fanoutSummary = useMemo(() => summarizeFanoutResults(fanoutResults), [fanoutResults]);
+  const fanoutSummaryText = fanoutResults.length
+    ? formatFanoutSummary(
+      fanoutSummary.running ? texts.fanoutSummaryRunning : texts.fanoutSummaryComplete,
+      fanoutSummary
+    )
+    : "";
+  const workflowTags = useMemo(() => {
+    const tags = workflows.flatMap((workflow) => normalizeWorkflowTags(workflow.tags));
+    return Array.from(new Set(tags.map((tag) => tag.toLowerCase())))
+      .map((key) => tags.find((tag) => tag.toLowerCase() === key) ?? key)
+      .sort((left, right) => left.localeCompare(right));
+  }, [workflows]);
+  const visibleWorkflows = useMemo(
+    () => filterWorkflows(workflows, { query: workflowSearchDraft, tag: workflowTagFilter }),
+    [workflowSearchDraft, workflowTagFilter, workflows]
+  );
   const pendingWorkflowVariables = useMemo(
     () => pendingVariableWorkflow ? extractWorkflowVariables(pendingVariableWorkflow.messages) : [],
     [pendingVariableWorkflow]
   );
   const variablesReady = pendingWorkflowVariables.every((name) => workflowVariableValues[name]?.trim());
+  const workflowVariablePreviewMessages = useMemo(() => {
+    if (!pendingVariableWorkflow || !variablesReady) {
+      return [];
+    }
+    try {
+      return applyWorkflowVariablesToMessages(pendingVariableWorkflow.messages, workflowVariableValues);
+    } catch {
+      return [];
+    }
+  }, [pendingVariableWorkflow, variablesReady, workflowVariableValues]);
+
+  const parsedVariableTable = useMemo(() => parseVariableTable(variableTableRaw), [variableTableRaw]);
+  const variableTableMissingColumns = useMemo(
+    () => getMissingVariableColumns(parsedVariableTable.headers, pendingWorkflowVariables),
+    [parsedVariableTable.headers, pendingWorkflowVariables]
+  );
+  const variableTableIncompleteRowCount = useMemo(
+    () => getIncompleteRowCount(parsedVariableTable.rows, pendingWorkflowVariables),
+    [parsedVariableTable.rows, pendingWorkflowVariables]
+  );
+  const variableTableError = useMemo(() => {
+    if (!variableTableRaw.trim()) {
+      return null;
+    }
+    if (!parsedVariableTable.rows.length) {
+      return texts.workflowVariableTableEmpty;
+    }
+    if (variableTableMissingColumns.length) {
+      return texts.workflowVariableTableMissingColumns.replace("{names}", variableTableMissingColumns.join(", "));
+    }
+    if (variableTableIncompleteRowCount > 0) {
+      return texts.workflowVariableTableIncompleteRows.replace("{count}", String(variableTableIncompleteRowCount));
+    }
+    return null;
+  }, [
+    parsedVariableTable.rows.length,
+    texts,
+    variableTableIncompleteRowCount,
+    variableTableMissingColumns,
+    variableTableRaw
+  ]);
+  const variableTableReady = Boolean(
+    parsedVariableTable.rows.length &&
+    !variableTableMissingColumns.length &&
+    variableTableIncompleteRowCount === 0
+  );
+  const variableTableTaskCount = pendingVariableWorkflow
+    ? parsedVariableTable.rows.length * pendingVariableWorkflow.messages.length
+    : 0;
 
   const updateTasks = async (tasks: QueueTask[], patch: Partial<QueueState> = {}): Promise<void> => {
     await persistState({
@@ -810,6 +1021,22 @@ export function QueuePanel(): JSX.Element {
     } catch {
       setLocalMessage(texts.runLogCopyFailed);
     }
+  };
+
+  const exportResults = (): void => {
+    const markdown = formatTaskResultsMarkdown(state.tasks);
+    const exportedAt = new Date().toISOString();
+    const blob = new Blob([markdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `promptqueue-results-${exportedAt.replace(/[:.]/g, "-")}.md`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleClearDone = (): void => {
+    void updateTasks(state.tasks.filter((task) => task.status !== "done"));
   };
 
   const prioritizeTaskAndStopCurrent = async (id: string): Promise<void> => {
@@ -956,6 +1183,7 @@ export function QueuePanel(): JSX.Element {
       version: 1,
       id: workflow.id,
       name: workflow.name,
+      tags: normalizeWorkflowTags(workflow.tags),
       exportedAt,
       messages,
       settings: {
@@ -1016,7 +1244,7 @@ export function QueuePanel(): JSX.Element {
     const latestWorkflows = await loadWorkflows();
     const importedName = getImportedWorkflowName(parsed, `${texts.untitledWorkflow} ${new Date().toLocaleDateString()}`);
     const name = getUniqueWorkflowName(importedName, latestWorkflows);
-    const workflow = makeWorkflow(name, messages);
+    const workflow = makeWorkflow(name, messages, getImportedWorkflowTags(parsed));
     await persistWorkflows([...latestWorkflows, workflow]);
     setExpandedWorkflowId(null);
     setLocalMessage(`${texts.workflowImported}: ${name}`);
@@ -1039,6 +1267,52 @@ export function QueuePanel(): JSX.Element {
     await persistWorkflows(workflows.map((workflow) => (
       workflow.id === id ? { ...workflow, name: uniqueName, updatedAt: now() } : workflow
     )));
+  };
+
+  const copyWorkflowById = async (id: string): Promise<void> => {
+    const latestWorkflows = await loadWorkflows();
+    const workflow = latestWorkflows.find((item) => item.id === id);
+    if (!workflow) {
+      return;
+    }
+
+    const copied = copyWorkflow(workflow, latestWorkflows.map((item) => item.name));
+    await persistWorkflows([...latestWorkflows, copied]);
+    setExpandedWorkflowId(copied.id);
+    setLocalMessage(`${texts.workflowCopied}: ${copied.name}`);
+  };
+
+  const addWorkflowTag = async (id: string, tag: string): Promise<void> => {
+    const trimmed = tag.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    await persistWorkflows(workflows.map((workflow) => (
+      workflow.id === id
+        ? {
+            ...workflow,
+            tags: normalizeWorkflowTags([...(workflow.tags ?? []), trimmed]),
+            updatedAt: now()
+          }
+        : workflow
+    )));
+  };
+
+  const removeWorkflowTag = async (id: string, tag: string): Promise<void> => {
+    const target = tag.trim().toLowerCase();
+    await persistWorkflows(workflows.map((workflow) => (
+      workflow.id === id
+        ? {
+            ...workflow,
+            tags: normalizeWorkflowTags(workflow.tags).filter((item) => item.toLowerCase() !== target),
+            updatedAt: now()
+          }
+        : workflow
+    )));
+    if (workflowTagFilter.toLowerCase() === target) {
+      setWorkflowTagFilter("");
+    }
   };
 
   const updateWorkflowMessages = async (id: string, messages: WorkflowMessage[]): Promise<void> => {
@@ -1081,6 +1355,8 @@ export function QueuePanel(): JSX.Element {
     setExpandedWorkflowId(null);
     setPendingVariableWorkflow(null);
     setWorkflowVariableValues({});
+    setVariableInputMode("single");
+    setVariableTableRaw("");
   };
 
   const runWorkflow = async (id: string): Promise<void> => {
@@ -1098,6 +1374,8 @@ export function QueuePanel(): JSX.Element {
     if (variables.length) {
       setPendingVariableWorkflow(workflow);
       setWorkflowVariableValues(Object.fromEntries(variables.map((name) => [name, ""])));
+      setVariableInputMode("single");
+      setVariableTableRaw("");
       return;
     }
 
@@ -1109,6 +1387,33 @@ export function QueuePanel(): JSX.Element {
       return;
     }
     await runWorkflowWithValues(pendingVariableWorkflow, workflowVariableValues);
+  };
+
+  const runWorkflowWithVariableRows = async (workflow: QueueWorkflow, rows: WorkflowVariableValues[]): Promise<void> => {
+    const latest = await loadState();
+    if (latest.isRunning || latest.currentTaskId) {
+      throw new Error(texts.workflowRunBlocked);
+    }
+
+    await persistStateAndRunQueue({
+      ...latest,
+      tasks: rows.flatMap((row) => tasksFromWorkflow(workflow, row)),
+      currentTaskId: undefined,
+      lastError: undefined
+    });
+    setActiveSection("run");
+    setExpandedWorkflowId(null);
+    setPendingVariableWorkflow(null);
+    setWorkflowVariableValues({});
+    setVariableInputMode("single");
+    setVariableTableRaw("");
+  };
+
+  const submitWorkflowVariableTable = async (): Promise<void> => {
+    if (!pendingVariableWorkflow || !variableTableReady) {
+      return;
+    }
+    await runWorkflowWithVariableRows(pendingVariableWorkflow, parsedVariableTable.rows);
   };
 
   const exportWorkflowById = (id: string): void => {
@@ -1150,8 +1455,10 @@ export function QueuePanel(): JSX.Element {
       ? "lastError"
       : state.reloadWarning
         ? "reloadWarning"
-        : null;
-  const displayMessage = localMessage ?? state.lastError ?? state.reloadWarning;
+        : state.rateLimitWarning
+          ? "rateLimitWarning"
+          : null;
+  const displayMessage = localMessage ?? state.lastError ?? state.reloadWarning ?? state.rateLimitWarning;
 
   const dismissMessage = (): void => {
     if (displayMessageSource === "local") {
@@ -1166,6 +1473,11 @@ export function QueuePanel(): JSX.Element {
 
     if (displayMessageSource === "reloadWarning") {
       void persistState({ ...state, reloadWarning: undefined });
+      return;
+    }
+
+    if (displayMessageSource === "rateLimitWarning") {
+      void persistState({ ...state, rateLimitWarning: undefined });
     }
   };
 
@@ -1233,24 +1545,15 @@ export function QueuePanel(): JSX.Element {
         </div>
         <div className="header-actions">
           <span className={`run-status-pill run-status-${runStatus}`}>{runStatusText}</span>
-          <div className="language-toggle" aria-label={texts.language}>
-            <button
-              type="button"
-              className={settings.language === "zh" ? "active" : ""}
-              aria-pressed={settings.language === "zh"}
-              onClick={() => void persistSettings({ ...settings, language: "zh" })}
-            >
-              {"\u4e2d"}
-            </button>
-            <button
-              type="button"
-              className={settings.language === "en" ? "active" : ""}
-              aria-pressed={settings.language === "en"}
-              onClick={() => void persistSettings({ ...settings, language: "en" })}
-            >
-              EN
-            </button>
-          </div>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setActiveSection("compare")}
+            aria-label={texts.openCompareTool}
+            title={texts.openCompareTool}
+          >
+            <SwapIcon />
+          </button>
           <button
             type="button"
             className="icon-button"
@@ -1315,6 +1618,62 @@ export function QueuePanel(): JSX.Element {
       <main className="panel-body">
         {activeSection === "run" ? (
           <section className="panel-section run-section" aria-label={texts.navRun}>
+            <section className="provider-health-panel" aria-label={texts.providerHealthTitle}>
+              <div className="section-title-row compact">
+                <h2>{texts.providerHealthTitle}</h2>
+                <span className="provider-health-provider">{providerHealth.provider}</span>
+              </div>
+              <div className="provider-health-list">
+                <span
+                  className={`provider-health-chip ${healthClassName(providerHealth.composerFound)}`}
+                  aria-label={healthLabel(texts.providerHealthComposer, providerHealth.composerFound, texts)}
+                >
+                  {texts.providerHealthComposer}
+                </span>
+                <span
+                  className={`provider-health-chip ${healthClassName(providerHealth.sendButtonFound)}`}
+                  aria-label={healthLabel(texts.providerHealthSend, providerHealth.sendButtonFound, texts)}
+                >
+                  {texts.providerHealthSend}
+                </span>
+                <span
+                  className={`provider-health-chip ${healthClassName(providerHealth.stopButtonFound)}`}
+                  aria-label={healthLabel(texts.providerHealthStop, providerHealth.stopButtonFound, texts)}
+                >
+                  {texts.providerHealthStop}
+                </span>
+                <span
+                  className={`provider-health-chip ${providerHealth.pageBusy ? "health-busy" : "health-ok"}`}
+                  aria-label={`${texts.providerHealthBusy}: ${providerHealth.pageBusy ? texts.providerHealthBusyValue : texts.providerHealthIdle}`}
+                >
+                  {texts.providerHealthBusy}
+                </span>
+              </div>
+            </section>
+
+            <section className="controls" aria-label={texts.controls}>
+              <div className="section-title-row compact">
+                <h2>{texts.controls}</h2>
+              </div>
+              <div className="control-grid compact-controls">
+                <button
+                  type="button"
+                  onClick={handleQueuePrimaryClick}
+                  disabled={queueActionBusy || (!state.isRunning && (counters.pending === 0)) || (state.isPaused && counters.pending === 0 && !state.currentTaskId)}
+                >
+                  {queuePrimaryLabel}
+                </button>
+                <button
+                  type="button"
+                  className="danger"
+                  onClick={() => void persistState({ ...DEFAULT_STATE })}
+                  disabled={!state.tasks.length || state.currentTaskId !== undefined || (state.isRunning && !state.isPaused)}
+                >
+                  {texts.clearAll}
+                </button>
+              </div>
+            </section>
+
             <section className="queue-messages-preview run-queue-list" aria-label={texts.queueMessages}>
               <div className="section-title-row compact">
                 <h2>{texts.queueMessages}</h2>
@@ -1355,6 +1714,53 @@ export function QueuePanel(): JSX.Element {
               )}
             </section>
 
+            <section className="queue-results-panel" aria-label={texts.resultsTitle}>
+              <div className="section-title-row compact">
+                <h2>{texts.resultsTitle}</h2>
+                <div className="section-title-actions">
+                  <button
+                    type="button"
+                    className="secondary mini-action"
+                    onClick={exportResults}
+                    disabled={!doneQueueTasks.length}
+                  >
+                    {texts.exportResults}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary mini-action"
+                    onClick={handleClearDone}
+                    disabled={!doneQueueTasks.length}
+                  >
+                    {texts.clearDone}
+                  </button>
+                </div>
+              </div>
+              {doneQueueTasks.length ? (
+                <div className="queue-task-list">
+                  {doneQueueTasks.map((task, index) => (
+                    <TaskItem
+                      key={task.id}
+                      task={task}
+                      index={index}
+                      total={doneQueueTasks.length}
+                      texts={texts}
+                      onEdit={handleTaskEdit}
+                      onDelete={handleTaskDelete}
+                      onMove={handleTaskMove}
+                      onMoveTop={handleTaskMoveTop}
+                      onSkip={handleTaskSkip}
+                      onRetry={handleTaskRetry}
+                      onDragStart={handleTaskDragStart}
+                      onDropOn={handleTaskDrop}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="empty-state compact-empty">{texts.resultsEmpty}</div>
+              )}
+            </section>
+
             <section className="run-log-panel" aria-label={texts.runLogTitle}>
               <div className="section-title-row compact">
                 <h2>{texts.runLogTitle}</h2>
@@ -1385,6 +1791,7 @@ export function QueuePanel(): JSX.Element {
                       <span className="run-log-prompt">{entry.promptPreview}</span>
                       <span className="run-log-meta">
                         {entry.provider} · {texts.runLogAttempt} {entry.attemptCount}
+                        {entry.failureStage ? ` · ${texts.runLogFailureStage} ${entry.failureStage}` : ""}
                       </span>
                     </div>
                   ))}
@@ -1394,71 +1801,40 @@ export function QueuePanel(): JSX.Element {
               )}
             </section>
 
+            <section className="save-workflow-box secondary-run-tool" aria-label={texts.saveAsWorkflow}>
+              <div className="section-title-row compact">
+                <h2>{texts.saveAsWorkflow}</h2>
+                <button
+                  type="button"
+                  className="secondary mini-action"
+                  onClick={() => setSaveWorkflowOpen((value) => !value)}
+                  disabled={!visibleQueueTasks.length}
+                  aria-expanded={saveWorkflowOpen}
+                >
+                  {saveWorkflowOpen ? texts.cancel : texts.saveAsWorkflow}
+                </button>
+              </div>
+              {saveWorkflowOpen ? (
+                <div className="save-workflow-form">
+                  <input
+                    value={workflowNameDraft}
+                    onChange={(event) => setWorkflowNameDraft(event.target.value)}
+                    placeholder={texts.workflowNamePlaceholder}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void runBusy("save-workflow", saveCurrentQueueAsWorkflow)}
+                    disabled={Boolean(busyAction) || !workflowNameDraft.trim() || !visibleQueueTasks.length}
+                  >
+                    {texts.save}
+                  </button>
+                </div>
+              ) : (
+                <p className="helper-text">{texts.saveWorkflowHint}</p>
+              )}
+            </section>
+
             <div className="run-bottom-stack">
-              <SteerBox
-                settings={settings}
-                texts={texts}
-                busy={steerBusy}
-                onSettingsChange={(nextSettings) => void persistSettings(nextSettings)}
-                onInsertNext={(prompt) => runSteer(() => insertSteerTask(prompt))}
-                onStopAndSteer={stopAndSteer}
-              />
-
-              <section className="controls" aria-label={texts.controls}>
-                <div className="section-title-row compact">
-                  <h2>{texts.controls}</h2>
-                </div>
-                <div className="control-grid compact-controls">
-                  <button
-                    type="button"
-                    onClick={handleQueuePrimaryClick}
-                    disabled={queueActionBusy || (!state.isRunning && (counters.pending === 0)) || (state.isPaused && counters.pending === 0 && !state.currentTaskId)}
-                  >
-                    {queuePrimaryLabel}
-                  </button>
-                  <button
-                    type="button"
-                    className="danger"
-                    onClick={() => void persistState({ ...DEFAULT_STATE })}
-                    disabled={!state.tasks.length || state.currentTaskId !== undefined || (state.isRunning && !state.isPaused)}
-                  >
-                    {texts.clearAll}
-                  </button>
-                </div>
-              </section>
-
-              <section className="save-workflow-box" aria-label={texts.saveAsWorkflow}>
-                <div className="section-title-row compact">
-                  <h2>{texts.saveAsWorkflow}</h2>
-                  <button
-                    type="button"
-                    className="secondary mini-action"
-                    onClick={() => setSaveWorkflowOpen((value) => !value)}
-                    disabled={!visibleQueueTasks.length}
-                  >
-                    {saveWorkflowOpen ? texts.cancel : texts.saveAsWorkflow}
-                  </button>
-                </div>
-                {saveWorkflowOpen ? (
-                  <div className="save-workflow-form">
-                    <input
-                      value={workflowNameDraft}
-                      onChange={(event) => setWorkflowNameDraft(event.target.value)}
-                      placeholder={texts.workflowNamePlaceholder}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => void runBusy("save-workflow", saveCurrentQueueAsWorkflow)}
-                      disabled={Boolean(busyAction) || !workflowNameDraft.trim() || !visibleQueueTasks.length}
-                    >
-                      {texts.save}
-                    </button>
-                  </div>
-                ) : (
-                  <p className="helper-text">{texts.saveWorkflowHint}</p>
-                )}
-              </section>
-
               <section className="add-box run-composer-box" aria-label={texts.addQueuePrompt}>
                 <div className="section-title-row compact">
                   <h2>{texts.addPromptLabel}</h2>
@@ -1469,14 +1845,82 @@ export function QueuePanel(): JSX.Element {
                   placeholder={texts.addPlaceholder}
                   rows={4}
                 />
-                <button
-                  type="button"
-                  onClick={() => void runBusy("add", addDraftToQueue)}
-                  disabled={Boolean(busyAction) || !promptDraft.trim()}
-                >
-                  {texts.addToQueue}
-                </button>
+                <div className="run-composer-actions">
+                  <button
+                    type="button"
+                    onClick={() => void runBusy("add", addDraftToQueue)}
+                    disabled={Boolean(busyAction) || !promptDraft.trim()}
+                  >
+                    {texts.addToQueue}
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => void startFanout()}
+                    disabled={fanoutBusy || !promptDraft.trim()}
+                  >
+                    {texts.fanoutButton}
+                  </button>
+                </div>
+                <SteerBox
+                  settings={settings}
+                  texts={texts}
+                  busy={steerBusy || Boolean(busyAction) || fanoutBusy}
+                  prompt={promptDraft}
+                  onSettingsChange={(nextSettings) => void persistSettings(nextSettings)}
+                  onInsertNext={(prompt) => runSteer(() => insertSteerTask(prompt))}
+                  onStopAndSteer={stopAndSteer}
+                  onConsumed={() => setPromptDraft("")}
+                />
               </section>
+
+              {fanoutResults.length ? (
+                <section className="fanout-results-panel" aria-label={texts.fanoutResultsTitle}>
+                  <div className="section-title-row compact">
+                    <div className="fanout-results-heading">
+                      <h2>{texts.fanoutResultsTitle}</h2>
+                      <span aria-live="polite">{fanoutSummaryText}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="secondary mini-action"
+                      onClick={() => {
+                        setFanoutResults([]);
+                        setFanoutSessionId(null);
+                      }}
+                    >
+                      {texts.fanoutClear}
+                    </button>
+                  </div>
+                  <div className="fanout-result-list">
+                    {fanoutResults.map((result) => (
+                      <div className={`fanout-result-card fanout-result-${result.status}`} key={result.provider}>
+                        <div className="section-title-row compact">
+                          <strong>{result.provider}</strong>
+                          <span className={`status-chip status-${result.status === "done" ? "done" : result.status === "error" ? "failed" : "running"}`}>
+                            {result.status === "pending" ? texts.fanoutPending : result.status === "error" ? texts.failed : texts.done}
+                          </span>
+                        </div>
+                        {result.status === "pending" ? <p className="fanout-pending-note">{texts.fanoutPendingDetail}</p> : null}
+                        {result.text ? (
+                          <>
+                            <p className="task-result-text">{result.text}</p>
+                            <div className="task-actions task-actions-wrap">
+                              <button type="button" className="secondary" onClick={() => useFanoutResultAsCompare("old", result.text!)}>
+                                {texts.fanoutUseAsOld}
+                              </button>
+                              <button type="button" className="secondary" onClick={() => useFanoutResultAsCompare("new", result.text!)}>
+                                {texts.fanoutUseAsNew}
+                              </button>
+                            </div>
+                          </>
+                        ) : null}
+                        {result.error ? <p className="task-error">{result.error}</p> : null}
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </div>
           </section>
         ) : null}
@@ -1486,7 +1930,12 @@ export function QueuePanel(): JSX.Element {
             <div className="section-title-row compact sticky-title">
               <h2>{texts.workflowLabel}</h2>
               <div className="section-title-actions">
-                <button type="button" className="secondary mini-action" onClick={() => setTemplatesOpen((value) => !value)}>
+                <button
+                  type="button"
+                  className="secondary mini-action"
+                  onClick={() => setTemplatesOpen((value) => !value)}
+                  aria-expanded={templatesOpen}
+                >
                   {templatesOpen ? texts.hideWorkflowTemplates : texts.addWorkflowTemplates}
                 </button>
                 <button type="button" className="secondary mini-action" onClick={() => fileInputRef.current?.click()}>
@@ -1514,8 +1963,26 @@ export function QueuePanel(): JSX.Element {
                 ))}
               </div>
             ) : null}
-            {workflows.length ? (
-              workflows.map((workflow) => (
+            <div className="workflow-filter-bar">
+              <input
+                value={workflowSearchDraft}
+                onChange={(event) => setWorkflowSearchDraft(event.target.value)}
+                placeholder={texts.workflowSearchPlaceholder}
+                aria-label={texts.workflowSearchPlaceholder}
+              />
+              <select
+                value={workflowTagFilter}
+                onChange={(event) => setWorkflowTagFilter(event.target.value)}
+                aria-label={texts.workflowTagFilter}
+              >
+                <option value="">{texts.workflowAllTags}</option>
+                {workflowTags.map((tag) => (
+                  <option value={tag} key={tag}>{tag}</option>
+                ))}
+              </select>
+            </div>
+            {visibleWorkflows.length ? (
+              visibleWorkflows.map((workflow) => (
                 <WorkflowCard
                   key={workflow.id}
                   workflow={workflow}
@@ -1524,10 +1991,13 @@ export function QueuePanel(): JSX.Element {
                   onToggle={(id) => setExpandedWorkflowId((current) => (current === id ? null : id))}
                   onRename={(id, name) => void runBusy("rename-workflow", () => renameWorkflow(id, name))}
                   onDelete={(id) => void runBusy("delete-workflow", () => deleteWorkflow(id))}
+                  onCopy={(id) => void runBusy("copy-workflow", () => copyWorkflowById(id))}
                   onRun={(id) => void runBusy("run-workflow", () => runWorkflow(id))}
                   onExport={exportWorkflowById}
                   runDisabled={Boolean(busyAction) || state.isRunning || workflow.messages.length === 0}
                   onUpdateMessages={(id, messages) => void runBusy("update-workflow", () => updateWorkflowMessages(id, messages))}
+                  onAddTag={(id, tag) => void runBusy("add-workflow-tag", () => addWorkflowTag(id, tag))}
+                  onRemoveTag={(id, tag) => void runBusy("remove-workflow-tag", () => removeWorkflowTag(id, tag))}
                   onWorkflowDragStart={(id) => {
                     draggedWorkflowIdRef.current = id;
                     setDraggedWorkflowId(id);
@@ -1539,6 +2009,8 @@ export function QueuePanel(): JSX.Element {
                   }}
                 />
               ))
+            ) : workflows.length ? (
+              <div className="empty-state">{texts.workflowNoMatches}</div>
             ) : (
               <div className="empty-state">{texts.workflowEmptyState}</div>
             )}
@@ -1553,6 +2025,7 @@ export function QueuePanel(): JSX.Element {
             language={settings.language}
             onOldTextChange={setCompareOldText}
             onNewTextChange={setCompareNewText}
+            onClose={() => setActiveSection("run")}
           />
         ) : null}
 
@@ -1564,36 +2037,6 @@ export function QueuePanel(): JSX.Element {
               onChange={(nextSettings) => void persistSettings(nextSettings)}
               onClose={() => setActiveSection("run")}
             />
-          </section>
-        ) : null}
-
-        {activeSection === "support" ? (
-          <section className="panel-section support-section" aria-label={texts.navSupport}>
-            <div className="donate-card expanded">
-              <div className="donate-copy">
-                <strong>{texts.supportTitle}</strong>
-                <span>{texts.supportBody}</span>
-              </div>
-              <a
-                className="github-star-link"
-                href={GITHUB_REPO_URL}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {texts.githubStar}
-              </a>
-              <a
-                className="github-star-link kofi-link"
-                href={KOFI_URL}
-                target="_blank"
-                rel="noreferrer"
-              >
-                {texts.koFiSupport}
-              </a>
-              {donateImageUrl ? (
-                <img src={donateImageUrl} alt={texts.wechatPayAlt} loading="lazy" />
-              ) : null}
-            </div>
           </section>
         ) : null}
 
@@ -1613,35 +2056,117 @@ export function QueuePanel(): JSX.Element {
                   onClick={() => {
                     setPendingVariableWorkflow(null);
                     setWorkflowVariableValues({});
+                    setVariableInputMode("single");
+                    setVariableTableRaw("");
                   }}
                 >
                   {texts.cancel}
                 </button>
               </div>
-              <p className="helper-text">{texts.workflowVariablesHint}</p>
-              <div className="workflow-variable-list">
-                {pendingWorkflowVariables.map((name) => (
-                  <label className="field" key={name}>
-                    <span>{name}</span>
-                    <input
-                      type="text"
-                      value={workflowVariableValues[name] ?? ""}
-                      onChange={(event) => setWorkflowVariableValues((current) => ({
-                        ...current,
-                        [name]: event.target.value
-                      }))}
-                      placeholder={`${texts.workflowVariablePlaceholder} ${name}`}
-                    />
-                  </label>
-                ))}
+
+              {/* role="tablist" requires role="tab" + aria-selected children;
+                  these are aria-pressed toggle buttons, so the correct
+                  container role is "group". */}
+              <div className="workflow-variable-mode-toggle" role="group" aria-label={texts.workflowVariablesTitle}>
+                <button
+                  type="button"
+                  className={variableInputMode === "single" ? "active" : ""}
+                  aria-pressed={variableInputMode === "single"}
+                  onClick={() => setVariableInputMode("single")}
+                >
+                  {texts.workflowVariableModeSingle}
+                </button>
+                <button
+                  type="button"
+                  className={variableInputMode === "table" ? "active" : ""}
+                  aria-pressed={variableInputMode === "table"}
+                  onClick={() => setVariableInputMode("table")}
+                >
+                  {texts.workflowVariableModeTable}
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => void runBusy("run-workflow-vars", submitWorkflowVariables)}
-                disabled={Boolean(busyAction) || !variablesReady}
-              >
-                {texts.runWithVariables}
-              </button>
+
+              {variableInputMode === "single" ? (
+                <>
+                  <p className="helper-text">{texts.workflowVariablesHint}</p>
+                  <div className="workflow-variable-list">
+                    {pendingWorkflowVariables.map((name) => (
+                      <label className="field" key={name}>
+                        <span>{name}</span>
+                        <input
+                          type="text"
+                          value={workflowVariableValues[name] ?? ""}
+                          onChange={(event) => setWorkflowVariableValues((current) => ({
+                            ...current,
+                            [name]: event.target.value
+                          }))}
+                          placeholder={`${texts.workflowVariablePlaceholder} ${name}`}
+                        />
+                      </label>
+                    ))}
+                  </div>
+                  {workflowVariablePreviewMessages.length ? (
+                    <div className="workflow-variable-preview">
+                      <strong>{texts.workflowRunPreviewTitle}</strong>
+                      <span>{formatCountMessage(texts.workflowRunPreviewCount, workflowVariablePreviewMessages.length)}</span>
+                      <ol>
+                        {workflowVariablePreviewMessages.map((message, index) => (
+                          <li key={message.id || index}>{previewPrompt(message.prompt, 96)}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void runBusy("run-workflow-vars", submitWorkflowVariables)}
+                    disabled={Boolean(busyAction) || !variablesReady}
+                  >
+                    {texts.runWithVariables}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="helper-text">{texts.workflowVariableTableHint}</p>
+                  <textarea
+                    className="workflow-variable-table-input"
+                    value={variableTableRaw}
+                    onChange={(event) => setVariableTableRaw(event.target.value)}
+                    placeholder={texts.workflowVariableTablePlaceholder}
+                    rows={6}
+                  />
+                  {variableTableError ? (
+                    <p className="task-error">{variableTableError}</p>
+                  ) : null}
+                  {variableTableReady ? (
+                    <div className="workflow-variable-preview">
+                      <strong>{texts.workflowRunPreviewTitle}</strong>
+                      <span>
+                        {texts.workflowVariableTableSummary
+                          .replace("{rows}", String(parsedVariableTable.rows.length))
+                          .replace("{perRow}", String(pendingVariableWorkflow.messages.length))
+                          .replace("{total}", String(variableTableTaskCount))}
+                      </span>
+                      <ol>
+                        {parsedVariableTable.rows.slice(0, 5).map((row, index) => (
+                          <li key={index}>{Object.values(row).join(" / ")}</li>
+                        ))}
+                      </ol>
+                      {parsedVariableTable.rows.length > 5 ? (
+                        <span className="field-hint">
+                          {texts.workflowVariableTablePreviewMore.replace("{count}", String(parsedVariableTable.rows.length - 5))}
+                        </span>
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => void runBusy("run-workflow-var-table", submitWorkflowVariableTable)}
+                    disabled={Boolean(busyAction) || !variableTableReady}
+                  >
+                    {texts.runWithVariableTable}
+                  </button>
+                </>
+              )}
             </section>
           </div>
         ) : null}

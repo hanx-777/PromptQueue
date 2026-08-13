@@ -7,13 +7,17 @@ export const chatgptProvider = createDomProvider({
   composerSelectors: [
     "form textarea",
     "form div[contenteditable='true']",
+    "form [contenteditable]",
     "textarea",
     "div[contenteditable='true']",
+    "[contenteditable]",
     "[role='textbox']",
     "[data-testid*='composer' i] textarea",
     "[data-testid*='composer' i] div[contenteditable='true']",
+    "[data-testid*='composer' i] [contenteditable]",
     "[data-testid*='prompt' i] textarea",
     "[data-testid*='prompt' i] div[contenteditable='true']",
+    "[data-testid*='prompt' i] [contenteditable]",
     "[data-testid*='composer' i]",
     "[data-testid*='prompt' i]"
   ],
@@ -32,7 +36,7 @@ export const chatgptProvider = createDomProvider({
   ],
   sendPositiveWords: ["send", "\u53d1\u9001"],
   stopPositiveWords: ["stop", "\u505c\u6b62"],
-  notSendWords: ["attach", "upload", "file", "voice", "microphone", "mic", "dictate", "tool", "search", "stop", "\u505c\u6b62"],
+  notSendWords: ["attach", "upload", "file", "voice", "voice mode", "microphone", "mic", "dictate", "dictation", "tool", "search", "model", "mode", "selector", "pro", "flash", "stop", "\u4e0a\u4f20", "\u9644\u4ef6", "\u5de5\u5177", "\u6a21\u5f0f", "\u6a21\u578b", "\u9009\u62e9\u5668", "\u6587\u4ef6", "\u8bed\u97f3", "\u8bed\u97f3\u6a21\u5f0f", "\u542c\u5199", "\u9ea6\u514b\u98ce", "\u641c\u7d22", "\u505c\u6b62"],
   mainSelectors: ["main", "[role='main']"],
   modelButtonSelectors: [
     "button[data-testid*='model' i]",

@@ -6,12 +6,18 @@ export const claudeProvider = createDomProvider({
   hostnames: ["claude.ai"],
   composerSelectors: [
     "div[contenteditable='true'][role='textbox']",
+    "[contenteditable][role='textbox']",
     "[contenteditable='true'][data-testid*='input' i]",
+    "[contenteditable][data-testid*='input' i]",
     "[contenteditable='true'][data-testid*='composer' i]",
+    "[contenteditable][data-testid*='composer' i]",
     "[aria-label*='message' i][contenteditable='true']",
+    "[aria-label*='message' i][contenteditable]",
     "[aria-label*='prompt' i][contenteditable='true']",
+    "[aria-label*='prompt' i][contenteditable]",
     "textarea",
     "div[contenteditable='true']",
+    "[contenteditable]",
     "[role='textbox']"
   ],
   sendButtonSelectors: [
@@ -27,7 +33,7 @@ export const claudeProvider = createDomProvider({
   ],
   sendPositiveWords: ["send", "submit", "\u53d1\u9001"],
   stopPositiveWords: ["stop", "cancel", "\u505c\u6b62", "\u53d6\u6d88"],
-  notSendWords: ["attach", "upload", "file", "image", "mic", "microphone", "voice", "stop", "cancel", "\u505c\u6b62", "\u53d6\u6d88"],
+  notSendWords: ["attach", "upload", "file", "image", "mic", "microphone", "voice", "voice mode", "dictate", "dictation", "tool", "model", "mode", "selector", "opus", "sonnet", "haiku", "stop", "cancel", "\u4e0a\u4f20", "\u9644\u4ef6", "\u5de5\u5177", "\u6a21\u5f0f", "\u6a21\u578b", "\u9009\u62e9\u5668", "\u6587\u4ef6", "\u56fe\u7247", "\u8bed\u97f3", "\u8bed\u97f3\u6a21\u5f0f", "\u542c\u5199", "\u9ea6\u514b\u98ce", "\u505c\u6b62", "\u53d6\u6d88"],
   mainSelectors: ["main", "[role='main']", "[data-testid*='chat' i]"],
   modelButtonSelectors: [
     "button[aria-label*='model' i]",

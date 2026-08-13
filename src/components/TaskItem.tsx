@@ -64,12 +64,23 @@ export function TaskItem({
       onDragEnd={onDragEnd}
     >
       <div className="task-header">
+        {/* Focusable but previously inert: Tab landed here and Enter/arrows did
+            nothing. Arrow keys now mirror the drag reorder. */}
         <button
           className="drag-handle icon-button"
           type="button"
-          title={texts.dragToReorder}
+          title={`${texts.dragToReorder} (↑ / ↓)`}
           disabled={!canReorder}
           aria-label={texts.dragTask}
+          onKeyDown={(event) => {
+            if (event.key === "ArrowUp" && index > 0) {
+              event.preventDefault();
+              onMove(task.id, "up");
+            } else if (event.key === "ArrowDown" && index < total - 1) {
+              event.preventDefault();
+              onMove(task.id, "down");
+            }
+          }}
         >
           <GripIcon />
         </button>
@@ -79,6 +90,7 @@ export function TaskItem({
           className="icon-button expand-button"
           type="button"
           onClick={() => setExpanded((value) => !value)}
+          aria-expanded={expanded}
           aria-label={expanded ? texts.collapseTask : texts.expandTask}
           title={expanded ? texts.collapseTask : texts.expandTask}
         >
@@ -110,6 +122,13 @@ export function TaskItem({
       )}
 
       {task.error ? <p className="task-error">{task.error}</p> : null}
+
+      {task.resultSummary ? (
+        <details className="task-result">
+          <summary>{texts.taskResultLabel}</summary>
+          <p className="task-result-text">{task.resultSummary}</p>
+        </details>
+      ) : null}
 
       <div className="task-actions task-actions-wrap">
         <button type="button" className="secondary" onClick={() => setEditing(true)} disabled={locked}>

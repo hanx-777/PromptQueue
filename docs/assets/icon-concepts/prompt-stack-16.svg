@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" role="img" aria-labelledby="title desc">
+  <title id="title">PromptQueue Prompt Stack compact icon</title>
+  <desc id="desc">Pixel-aligned stacked prompt cards with three outputs for a browser toolbar.</desc>
+  <rect x="0.5" y="0.5" width="15" height="15" rx="3" fill="#171717" stroke="#4a4a4a" stroke-width="0.75"/>
+  <rect x="2.45" y="3.25" width="7.1" height="5.9" rx="1" fill="#171717" stroke="#f7f7f5" stroke-width="1.05"/>
+  <rect x="3.65" y="4.65" width="7.35" height="6.15" rx="1" fill="#f7f7f5"/>
+  <g fill="none" stroke="#171717" stroke-width="0.85" stroke-linecap="round">
+    <path d="M5.25 6.5h3.55"/>
+    <path d="M5.25 8.35h2.8"/>
+  </g>
+  <g fill="none" stroke="#f7f7f5" stroke-width="0.9" stroke-linecap="round">
+    <path d="M10.6 6.4c0.7 0 0.7-1 1.25-1"/>
+    <path d="M10.6 7.75h1.25"/>
+    <path d="M10.6 9.1c0.7 0 0.7 1 1.25 1"/>
+  </g>
+  <circle cx="13.05" cy="5.4" r="0.95" fill="#10a37f"/>
+  <circle cx="13.05" cy="7.75" r="0.95" fill="#1a73e8"/>
+  <circle cx="13.05" cy="10.1" r="0.95" fill="#d97757"/>
+</svg>

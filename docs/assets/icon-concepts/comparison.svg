@@ -1,0 +1,127 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 860" role="img" aria-labelledby="title desc">
+  <title id="title">PromptQueue icon concept comparison</title>
+  <desc id="desc">Three PromptQueue icon concepts shown at 128, 48, and 16 pixels on light and dark browser toolbar backgrounds.</desc>
+  <style>
+    text { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; fill: #202123; letter-spacing: 0; }
+    .name { font-size: 24px; font-weight: 700; }
+    .index { font-size: 13px; font-weight: 700; fill: #6f6f6b; }
+    .label { font-size: 12px; font-weight: 600; fill: #6f6f6b; }
+    .note { font-size: 14px; fill: #4f4f4b; }
+    .toolbar-label { font-size: 11px; font-weight: 600; }
+    .zoom { image-rendering: pixelated; }
+  </style>
+
+  <rect width="1200" height="860" fill="#f4f4f2"/>
+  <text x="40" y="52" font-size="28" font-weight="700">PromptQueue icon concepts</text>
+  <text x="40" y="78" font-size="14" fill="#6f6f6b">128px source mark, 48px extension surface, and dedicated 16px toolbar glyph</text>
+
+  <!-- A: Dispatch -->
+  <g transform="translate(32 106)">
+    <rect width="368" height="714" rx="8" fill="#ffffff" stroke="#d8d8d3"/>
+    <text class="index" x="24" y="36">CONCEPT A</text>
+    <text class="name" x="24" y="70">Dispatch</text>
+    <rect x="257" y="24" width="87" height="26" rx="8" fill="#e7f7f1"/>
+    <text x="300.5" y="42" text-anchor="middle" font-size="11" font-weight="700" fill="#047857">RECOMMENDED</text>
+
+    <rect x="24" y="94" width="320" height="186" rx="8" fill="#f0f0ee"/>
+    <image x="120" y="123" width="128" height="128" xlink:href="dispatch-128.png"/>
+    <text class="label" x="184" y="270" text-anchor="middle">128 PX</text>
+
+    <text class="toolbar-label" x="24" y="309" fill="#6f6f6b">LIGHT TOOLBAR</text>
+    <rect x="24" y="322" width="320" height="94" rx="8" fill="#fafafa" stroke="#deded9"/>
+    <image x="52" y="345" width="48" height="48" xlink:href="dispatch-48.png"/>
+    <image x="137" y="361" width="16" height="16" xlink:href="dispatch-16.png"/>
+    <image class="zoom" x="232" y="337" width="64" height="64" xlink:href="dispatch-16.png"/>
+    <text class="label" x="76" y="405" text-anchor="middle">48</text>
+    <text class="label" x="145" y="405" text-anchor="middle">16</text>
+    <text class="label" x="264" y="405" text-anchor="middle">16 × 4</text>
+
+    <text class="toolbar-label" x="24" y="449" fill="#6f6f6b">DARK TOOLBAR</text>
+    <rect x="24" y="462" width="320" height="94" rx="8" fill="#202124"/>
+    <image x="52" y="485" width="48" height="48" xlink:href="dispatch-48.png"/>
+    <image x="137" y="501" width="16" height="16" xlink:href="dispatch-16.png"/>
+    <image class="zoom" x="232" y="477" width="64" height="64" xlink:href="dispatch-16.png"/>
+    <text class="label" x="76" y="545" text-anchor="middle" fill="#b4b4b4">48</text>
+    <text class="label" x="145" y="545" text-anchor="middle" fill="#b4b4b4">16</text>
+    <text class="label" x="264" y="545" text-anchor="middle" fill="#b4b4b4">16 × 4</text>
+
+    <text class="note" x="24" y="600">Queue lanes converge, then fan out.</text>
+    <text class="note" x="24" y="626">Fastest functional recognition at 16px.</text>
+    <circle cx="28" cy="667" r="5" fill="#10a37f"/>
+    <circle cx="48" cy="667" r="5" fill="#1a73e8"/>
+    <circle cx="68" cy="667" r="5" fill="#d97757"/>
+    <text class="label" x="84" y="671">multi-provider routing</text>
+  </g>
+
+  <!-- B: Split Q -->
+  <g transform="translate(416 106)">
+    <rect width="368" height="714" rx="8" fill="#ffffff" stroke="#d8d8d3"/>
+    <text class="index" x="24" y="36">CONCEPT B</text>
+    <text class="name" x="24" y="70">Split Q</text>
+
+    <rect x="24" y="94" width="320" height="186" rx="8" fill="#f0f0ee"/>
+    <image x="120" y="123" width="128" height="128" xlink:href="split-q-128.png"/>
+    <text class="label" x="184" y="270" text-anchor="middle">128 PX</text>
+
+    <text class="toolbar-label" x="24" y="309" fill="#6f6f6b">LIGHT TOOLBAR</text>
+    <rect x="24" y="322" width="320" height="94" rx="8" fill="#fafafa" stroke="#deded9"/>
+    <image x="52" y="345" width="48" height="48" xlink:href="split-q-48.png"/>
+    <image x="137" y="361" width="16" height="16" xlink:href="split-q-16.png"/>
+    <image class="zoom" x="232" y="337" width="64" height="64" xlink:href="split-q-16.png"/>
+    <text class="label" x="76" y="405" text-anchor="middle">48</text>
+    <text class="label" x="145" y="405" text-anchor="middle">16</text>
+    <text class="label" x="264" y="405" text-anchor="middle">16 × 4</text>
+
+    <text class="toolbar-label" x="24" y="449" fill="#6f6f6b">DARK TOOLBAR</text>
+    <rect x="24" y="462" width="320" height="94" rx="8" fill="#202124"/>
+    <image x="52" y="485" width="48" height="48" xlink:href="split-q-48.png"/>
+    <image x="137" y="501" width="16" height="16" xlink:href="split-q-16.png"/>
+    <image class="zoom" x="232" y="477" width="64" height="64" xlink:href="split-q-16.png"/>
+    <text class="label" x="76" y="545" text-anchor="middle" fill="#b4b4b4">48</text>
+    <text class="label" x="145" y="545" text-anchor="middle" fill="#b4b4b4">16</text>
+    <text class="label" x="264" y="545" text-anchor="middle" fill="#b4b4b4">16 × 4</text>
+
+    <text class="note" x="24" y="600">A compact Q becomes the routing path.</text>
+    <text class="note" x="24" y="626">Strongest standalone brand character.</text>
+    <circle cx="28" cy="667" r="5" fill="#10a37f"/>
+    <circle cx="48" cy="667" r="5" fill="#1a73e8"/>
+    <circle cx="68" cy="667" r="5" fill="#d97757"/>
+    <text class="label" x="84" y="671">monogram + fanout</text>
+  </g>
+
+  <!-- C: Prompt Stack -->
+  <g transform="translate(800 106)">
+    <rect width="368" height="714" rx="8" fill="#ffffff" stroke="#d8d8d3"/>
+    <text class="index" x="24" y="36">CONCEPT C</text>
+    <text class="name" x="24" y="70">Prompt Stack</text>
+
+    <rect x="24" y="94" width="320" height="186" rx="8" fill="#f0f0ee"/>
+    <image x="120" y="123" width="128" height="128" xlink:href="prompt-stack-128.png"/>
+    <text class="label" x="184" y="270" text-anchor="middle">128 PX</text>
+
+    <text class="toolbar-label" x="24" y="309" fill="#6f6f6b">LIGHT TOOLBAR</text>
+    <rect x="24" y="322" width="320" height="94" rx="8" fill="#fafafa" stroke="#deded9"/>
+    <image x="52" y="345" width="48" height="48" xlink:href="prompt-stack-48.png"/>
+    <image x="137" y="361" width="16" height="16" xlink:href="prompt-stack-16.png"/>
+    <image class="zoom" x="232" y="337" width="64" height="64" xlink:href="prompt-stack-16.png"/>
+    <text class="label" x="76" y="405" text-anchor="middle">48</text>
+    <text class="label" x="145" y="405" text-anchor="middle">16</text>
+    <text class="label" x="264" y="405" text-anchor="middle">16 × 4</text>
+
+    <text class="toolbar-label" x="24" y="449" fill="#6f6f6b">DARK TOOLBAR</text>
+    <rect x="24" y="462" width="320" height="94" rx="8" fill="#202124"/>
+    <image x="52" y="485" width="48" height="48" xlink:href="prompt-stack-48.png"/>
+    <image x="137" y="501" width="16" height="16" xlink:href="prompt-stack-16.png"/>
+    <image class="zoom" x="232" y="477" width="64" height="64" xlink:href="prompt-stack-16.png"/>
+    <text class="label" x="76" y="545" text-anchor="middle">48</text>
+    <text class="label" x="145" y="545" text-anchor="middle">16</text>
+    <text class="label" x="264" y="545" text-anchor="middle">16 × 4</text>
+
+    <text class="note" x="24" y="600">Stacked prompts feed three destinations.</text>
+    <text class="note" x="24" y="626">Most literal queue representation.</text>
+    <circle cx="28" cy="667" r="5" fill="#10a37f"/>
+    <circle cx="48" cy="667" r="5" fill="#1a73e8"/>
+    <circle cx="68" cy="667" r="5" fill="#d97757"/>
+    <text class="label" x="84" y="671">prompt cards + routing</text>
+  </g>
+</svg>

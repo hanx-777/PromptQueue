@@ -30,6 +30,9 @@ export function formatRunLogMarkdown(entries: QueueRunLogEntry[]): string {
     if (entry.error) {
       lines.push(`- Error: ${entry.error}`);
     }
+    if (entry.failureStage) {
+      lines.push(`- Failure stage: ${entry.failureStage}`);
+    }
     lines.push("");
   });
 

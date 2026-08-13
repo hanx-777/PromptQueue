@@ -17,6 +17,11 @@ export interface ProviderGenerationSnapshot {
   assistantSignature: string;
   assistantTextLength: number;
   assistantMediaCount: number;
+  assistantMessageCount: number;
+}
+
+export interface AssistantMessage {
+  text: string;
 }
 
 export interface ProviderAdapter {
@@ -34,4 +39,6 @@ export interface ProviderAdapter {
   findMainArea(): HTMLElement;
   getGenerationSnapshot(): ProviderGenerationSnapshot;
   selectModel(preference: ProviderModelPreference): Promise<ModelSelectionResult>;
+  /** Best-effort read of the last assistant reply's visible text. Returns null if no reply is found. */
+  getLastAssistantMessage(): AssistantMessage | null;
 }

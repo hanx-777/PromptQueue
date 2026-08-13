@@ -1,6 +1,6 @@
 {
   "name": "promptqueue-extension",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Queue prompts, reuse workflows, and steer your next message across major AI chat pages.",
   "repository": {

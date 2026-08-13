@@ -11,10 +11,13 @@ interface WorkflowCardProps {
   onToggle: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
+  onCopy: (id: string) => void;
   onRun: (id: string) => void;
   onExport: (id: string) => void;
   runDisabled: boolean;
   onUpdateMessages: (id: string, messages: WorkflowMessage[]) => void;
+  onAddTag: (id: string, tag: string) => void;
+  onRemoveTag: (id: string, tag: string) => void;
   onWorkflowDragStart: (id: string) => void;
   onWorkflowDrop: (id: string) => void;
   onWorkflowDragEnd: () => void;
@@ -60,16 +63,20 @@ export function WorkflowCard({
   onToggle,
   onRename,
   onDelete,
+  onCopy,
   onRun,
   onExport,
   runDisabled,
   onUpdateMessages,
+  onAddTag,
+  onRemoveTag,
   onWorkflowDragStart,
   onWorkflowDrop,
   onWorkflowDragEnd
 }: WorkflowCardProps): JSX.Element {
   const [nameDraft, setNameDraft] = useState(workflow.name);
   const [newMessageDraft, setNewMessageDraft] = useState("");
+  const [tagDraft, setTagDraft] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [messageDraft, setMessageDraft] = useState("");
   const [draggedMessageId, setDraggedMessageId] = useState<string | null>(null);
@@ -151,6 +158,15 @@ export function WorkflowCard({
     updateMessages(workflow.messages.filter((message) => message.id !== id));
   };
 
+  const addTag = (): void => {
+    const trimmed = tagDraft.trim();
+    if (!trimmed) {
+      return;
+    }
+    onAddTag(workflow.id, trimmed);
+    setTagDraft("");
+  };
+
   const dropOnMessage = (event: DragEvent<HTMLLIElement>, targetId: string): void => {
     event.preventDefault();
     event.stopPropagation();
@@ -193,6 +209,11 @@ export function WorkflowCard({
             {workflow.messages.length} {texts.workflowMessageUnit} · {texts.updatedAt}:{" "}
             {new Date(workflow.updatedAt).toLocaleString()}
           </p>
+          {workflow.tags?.length ? (
+            <div className="workflow-tag-list" aria-label={texts.workflowTagsLabel}>
+              {workflow.tags.map((tag) => <span className="workflow-tag" key={tag}>{tag}</span>)}
+            </div>
+          ) : null}
         </div>
 
         <button
@@ -212,6 +233,9 @@ export function WorkflowCard({
         </button>
         <button type="button" className="secondary" onClick={() => onToggle(workflow.id)}>
           {texts.edit}
+        </button>
+        <button type="button" className="secondary" onClick={() => onCopy(workflow.id)}>
+          {texts.copyWorkflow}
         </button>
         <button type="button" className="secondary" onClick={() => onExport(workflow.id)}>
           {texts.exportWorkflow}
@@ -246,6 +270,35 @@ export function WorkflowCard({
             </button>
           </div>
 
+          <div className="workflow-tag-editor">
+            <span>{texts.workflowTagsLabel}</span>
+            {workflow.tags?.length ? (
+              <div className="workflow-tag-list editable">
+                {workflow.tags.map((tag) => (
+                  <button
+                    type="button"
+                    className="workflow-tag removable"
+                    key={tag}
+                    onClick={() => onRemoveTag(workflow.id, tag)}
+                    title={`${texts.delete} ${tag}`}
+                  >
+                    {tag} x
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <div className="workflow-tag-input-row">
+              <input
+                value={tagDraft}
+                onChange={(event) => setTagDraft(event.target.value)}
+                placeholder={texts.workflowTagPlaceholder}
+              />
+              <button type="button" className="secondary" onClick={addTag} disabled={!tagDraft.trim()}>
+                {texts.addWorkflowTag}
+              </button>
+            </div>
+          </div>
+
           {workflow.messages.length ? (
             <ol className="workflow-message-list">
               {workflow.messages.map((message, index) => (
@@ -265,7 +318,21 @@ export function WorkflowCard({
                   onDrop={(event) => dropOnMessage(event, message.id)}
                 >
                   <div className="workflow-message-head">
-                    <button type="button" className="drag-handle icon-button" title={texts.dragToReorder}>
+                    <button
+                      type="button"
+                      className="drag-handle icon-button"
+                      title={`${texts.dragToReorder} (↑ / ↓)`}
+                      aria-label={texts.dragToReorder}
+                      onKeyDown={(event) => {
+                        if (event.key === "ArrowUp" && index > 0) {
+                          event.preventDefault();
+                          moveMessage(message.id, "up");
+                        } else if (event.key === "ArrowDown" && index < workflow.messages.length - 1) {
+                          event.preventDefault();
+                          moveMessage(message.id, "down");
+                        }
+                      }}
+                    >
                       <GripIcon />
                     </button>
                     <span className="task-index">#{index + 1}</span>

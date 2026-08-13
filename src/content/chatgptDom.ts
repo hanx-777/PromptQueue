@@ -1,3 +1,4 @@
+import type { AssistantMessage } from "./providers";
 import { getCurrentProvider } from "./providers";
 
 export function findComposer(): HTMLElement | null {
@@ -34,4 +35,8 @@ export function findChatMainArea(): HTMLElement {
 
 export function findComposerFormForDiagnostics(): HTMLFormElement | null {
   return findComposer()?.closest("form") ?? null;
+}
+
+export function getLastAssistantMessage(): AssistantMessage | null {
+  return getCurrentProvider().getLastAssistantMessage();
 }

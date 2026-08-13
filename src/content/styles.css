@@ -32,11 +32,11 @@ button {
   border: 1px solid var(--button-border, transparent);
   border-radius: var(--button-radius, 8px);
   min-height: 34px;
-  padding: 7px 10px;
+  padding: var(--space-md) var(--space-lg);
   background: var(--button);
   color: var(--button-text);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 600;
   letter-spacing: 0;
   transition:
@@ -54,9 +54,24 @@ button:hover:not(:disabled) {
 button:focus-visible,
 textarea:focus-visible,
 input:focus-visible,
-select:focus-visible {
+select:focus-visible,
+a:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
   outline: 2px solid var(--focus);
   outline-offset: 2px;
+}
+
+/* Pressed feedback was missing entirely, so every control felt inert on
+   click. Kept subtle so it reads as a press, not a state change. */
+button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  button:active:not(:disabled) {
+    transform: none;
+  }
 }
 
 button:disabled {
@@ -65,7 +80,7 @@ button:disabled {
 }
 
 button.secondary {
-  border-color: var(--border);
+  border-color: var(--border-control);
   background: var(--button-secondary);
   color: var(--text);
 }
@@ -99,11 +114,15 @@ a {
   text-decoration: none;
 }
 
+/* WCAG 1.4.11: a control's boundary needs 3:1 when nothing else identifies it.
+   --input (#ffffff) sits at only 1.03:1 against --bg, so the border is the
+   sole affordance here and must use --border-control rather than the softer
+   --border used for decorative dividers. */
 textarea,
 input,
 select {
   width: 100%;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--control-radius, 10px);
   background: var(--input);
   color: var(--text);
@@ -112,15 +131,15 @@ select {
 
 textarea {
   min-height: 72px;
-  padding: 10px 11px;
+  padding: var(--space-lg) var(--space-xl);
   resize: vertical;
-  line-height: 1.45;
+  line-height: var(--lh-normal);
 }
 
 input,
 select {
   height: 34px;
-  padding: 0 10px;
+  padding: 0 var(--space-lg);
 }
 
 textarea::placeholder {
@@ -155,9 +174,10 @@ textarea::placeholder {
   --surface-hover: #ececea;
   --border: #deded9;
   --border-strong: #c8c8c2;
+  --border-control: #8f8f7f;
   --text: #202123;
   --muted: #6f6f6b;
-  --muted-2: #9a9a94;
+  --muted-2: #71716b;
   --input: #ffffff;
   --button: var(--provider-accent);
   --button-hover: var(--provider-accent-hover);
@@ -186,12 +206,55 @@ textarea::placeholder {
   --danger-bg-hover: #912018;
   --danger-border: #b42318;
   --danger-text: #ffffff;
-  --pending: #64748b;
-  --running: #0f766e;
-  --done: #15803d;
+  --pending: #57657a;
+  --running: #0e6f68;
+  --done: #137337;
   --failed: #b42318;
-  --skipped: #6d5bd0;
+  --skipped: #624fcd;
   --font-mono: ui-monospace, "SFMono-Regular", "SF Mono", Consolas, "Liberation Mono", Menlo, monospace;
+
+  /* Type scale. Previously 6 hardcoded sizes (10/11/12/13/14/15px) in a flat
+     1px-increment run with no tokens; 10px sat below every platform minimum
+     and has been folded into 11px. */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 14px;
+  --text-xl: 15px;
+
+  /* Line heights. Previously 13 one-off values written per rule, including a
+     unit-inconsistent `line-height: 16px`. */
+  --lh-none: 1;
+  --lh-tight: 1.2;
+  --lh-snug: 1.35;
+  --lh-normal: 1.45;
+
+  /* Spacing scale. A dense utility panel needs finer steps than a 4px grid,
+     so this is a 2px-step scale at the small end. Values 1/3/5/7/9/11/14/18px
+     used to be scattered through the sheet; they are snapped onto this scale. */
+  --space-2xs: 2px;
+  --space-xs: 4px;
+  --space-sm: 6px;
+  --space-md: 8px;
+  --space-lg: 10px;
+  --space-xl: 12px;
+  --space-2xl: 16px;
+  --space-3xl: 24px;
+
+  /* Radii. Previously 10 distinct values, only 2 of them tokenised. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-pill: 999px;
+
+  /* Shadows were hardcoded rgba(0,0,0,...) and therefore identical in dark
+     mode, where they read as muddy haloes instead of elevation. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-lg: -12px 0 32px rgba(0, 0, 0, 0.12);
+  --shadow-float: 0 18px 44px rgba(0, 0, 0, 0.18);
+  --shadow-rail: -8px 0 24px rgba(0, 0, 0, 0.16);
+  --shadow-up: 0 -12px 24px rgba(0, 0, 0, 0.06);
   --diff-insert-bg: #ecfdf3;
   --diff-insert-bg-strong: #bbf7d0;
   --diff-insert-border: #22c55e;
@@ -221,7 +284,7 @@ textarea::placeholder {
   border-left: 1px solid var(--border);
   background: var(--bg);
   color: var(--text);
-  box-shadow: -12px 0 32px rgba(0, 0, 0, 0.12);
+  box-shadow: var(--shadow-lg);
 }
 
 .queue-shell.theme-dark {
@@ -231,6 +294,7 @@ textarea::placeholder {
   --surface-hover: #303030;
   --border: #343434;
   --border-strong: #474747;
+  --border-control: #656565;
   --text: #ececec;
   --muted: #b4b4b4;
   --muted-2: #8e8e8e;
@@ -253,6 +317,32 @@ textarea::placeholder {
   --danger-bg-hover: #ea5a52;
   --danger-border: #d0443e;
   --danger-text: #ffffff;
+  --color-scheme: dark;
+  /* Elevation needs more opacity on a dark ground to stay perceptible. */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.55);
+  --shadow-lg: -12px 0 32px rgba(0, 0, 0, 0.55);
+  --shadow-float: 0 18px 44px rgba(0, 0, 0, 0.62);
+  --shadow-rail: -8px 0 24px rgba(0, 0, 0, 0.55);
+  --shadow-up: 0 -12px 24px rgba(0, 0, 0, 0.42);
+  /* The diff palette used to live only in .provider-chatgpt.theme-dark, so
+     Gemini and Claude fell back to the light-theme diff colors and rendered a
+     white diff panel inside a dark shell. Defining it on the generic dark
+     theme lets every provider inherit it; a provider may still override. */
+  --diff-insert-bg: rgba(22, 101, 52, 0.24);
+  --diff-insert-bg-strong: rgba(34, 197, 94, 0.32);
+  --diff-insert-border: #4ade80;
+  --diff-insert-text: #bbf7d0;
+  --diff-delete-bg: rgba(127, 29, 29, 0.28);
+  --diff-delete-bg-strong: rgba(248, 113, 113, 0.28);
+  --diff-delete-border: #fb7185;
+  --diff-delete-text: #fecdd3;
+  --diff-change-bg: rgba(120, 53, 15, 0.26);
+  --diff-change-bg-strong: rgba(251, 191, 36, 0.28);
+  --diff-change-border: #fbbf24;
+  --diff-change-text: #fde68a;
+  --diff-gutter-bg: rgba(226, 232, 240, 0.06);
+  --diff-empty-bg: rgba(148, 163, 184, 0.14);
 }
 
 .queue-shell.provider-chatgpt.theme-light {
@@ -264,9 +354,10 @@ textarea::placeholder {
   --surface-hover: #ececea;
   --border: #deded9;
   --border-strong: #c8c8c2;
+  --border-control: #8f8f7f;
   --text: #202123;
   --muted: #6f6f6b;
-  --muted-2: #9a9a94;
+  --muted-2: #71716b;
   --input: #ffffff;
   --button: #202123;
   --button-hover: #292a2d;
@@ -284,11 +375,11 @@ textarea::placeholder {
   --provider-accent-text: #047857;
   --focus: #10a37f;
   --focus-soft: rgba(16, 163, 127, 0.16);
-  --pending: #64748b;
-  --running: #0f766e;
-  --done: #15803d;
+  --pending: #57657a;
+  --running: #0e6f68;
+  --done: #137337;
   --failed: #b42318;
-  --skipped: #6d5bd0;
+  --skipped: #624fcd;
 }
 
 .queue-shell.provider-chatgpt.theme-dark {
@@ -300,6 +391,7 @@ textarea::placeholder {
   --surface-hover: #303030;
   --border: #343434;
   --border-strong: #474747;
+  --border-control: #656565;
   --text: #ececec;
   --muted: #b4b4b4;
   --muted-2: #8e8e8e;
@@ -325,20 +417,7 @@ textarea::placeholder {
   --done: #4ade80;
   --failed: #f87171;
   --skipped: #a78bfa;
-  --diff-insert-bg: rgba(22, 101, 52, 0.24);
-  --diff-insert-bg-strong: rgba(34, 197, 94, 0.32);
-  --diff-insert-border: #4ade80;
-  --diff-insert-text: #bbf7d0;
-  --diff-delete-bg: rgba(127, 29, 29, 0.28);
-  --diff-delete-bg-strong: rgba(248, 113, 113, 0.28);
-  --diff-delete-border: #fb7185;
-  --diff-delete-text: #fecdd3;
-  --diff-change-bg: rgba(120, 53, 15, 0.26);
-  --diff-change-bg-strong: rgba(251, 191, 36, 0.28);
-  --diff-change-border: #fbbf24;
-  --diff-change-text: #fde68a;
-  --diff-gutter-bg: rgba(226, 232, 240, 0.06);
-  --diff-empty-bg: rgba(148, 163, 184, 0.14);
+  /* diff palette now inherited from .queue-shell.theme-dark */
 }
 
 .queue-shell.provider-gemini.theme-light {
@@ -350,9 +429,10 @@ textarea::placeholder {
   --surface-hover: #e1ecfb;
   --border: #d6dee9;
   --border-strong: #bcc8d8;
+  --border-control: #748fb5;
   --text: #1f1f1f;
   --muted: #5f6368;
-  --muted-2: #8b9199;
+  --muted-2: #6a7179;
   --input: #ffffff;
   --button: #1f1f1f;
   --button-hover: #2b2d30;
@@ -371,10 +451,10 @@ textarea::placeholder {
   --focus: #1a73e8;
   --focus-soft: rgba(26, 115, 232, 0.14);
   --pending: #5f6368;
-  --running: #1a73e8;
-  --done: #188038;
+  --running: #145fc3;
+  --done: #157232;
   --failed: #b3261e;
-  --skipped: #7c3aed;
+  --skipped: #7732ec;
 }
 
 .queue-shell.provider-gemini.theme-dark {
@@ -386,6 +466,7 @@ textarea::placeholder {
   --surface-hover: #222831;
   --border: #2b3036;
   --border-strong: #3d4652;
+  --border-control: #545d69;
   --text: #e8eaed;
   --muted: #bdc1c6;
   --muted-2: #8f949b;
@@ -422,9 +503,10 @@ textarea::placeholder {
   --surface-hover: #e8e1d3;
   --border: #ded7c8;
   --border-strong: #c8beaa;
+  --border-control: #9e8a5f;
   --text: #141413;
   --muted: #6d675c;
-  --muted-2: #9c9485;
+  --muted-2: #766e60;
   --input: #fffaf2;
   --button: #141413;
   --button-hover: #24231f;
@@ -442,11 +524,11 @@ textarea::placeholder {
   --provider-accent-text: #a7472c;
   --focus: #d97757;
   --focus-soft: rgba(217, 119, 87, 0.18);
-  --pending: #7c7468;
-  --running: #b45309;
-  --done: #788c5d;
+  --pending: #696258;
+  --running: #9f4908;
+  --done: #596745;
   --failed: #b42318;
-  --skipped: #6a9bcc;
+  --skipped: #346597;
 }
 
 .queue-shell.provider-claude.theme-dark {
@@ -458,6 +540,7 @@ textarea::placeholder {
   --surface-hover: #333029;
   --border: #3b372e;
   --border-strong: #544e42;
+  --border-control: #6a6252;
   --text: #faf9f5;
   --muted: #c8c2b6;
   --muted-2: #9f9788;
@@ -505,9 +588,9 @@ textarea::placeholder {
   overflow: hidden;
   transform: translateY(-100%);
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--surface) 94%, transparent);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.18);
+  box-shadow: var(--shadow-float);
   backdrop-filter: blur(10px);
 }
 
@@ -515,22 +598,22 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-items: center;
-  padding: 8px;
+  padding: var(--space-md);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
 }
 
 .native-dock-title {
   display: grid;
-  gap: 2px;
+  gap: var(--space-2xs);
   min-width: 0;
 }
 
 .native-dock-title strong {
   overflow: hidden;
   color: var(--text);
-  font-size: 13px;
-  line-height: 1.2;
+  font-size: var(--text-md);
+  line-height: var(--lh-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -538,33 +621,34 @@ textarea::placeholder {
 .native-dock-title span {
   overflow: hidden;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.2;
+  font-size: var(--text-xs);
+  line-height: var(--lh-tight);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .native-task-actions {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-xs);
 }
 
 .native-task-list {
   display: grid;
-  gap: 7px;
+  gap: var(--space-md);
   min-height: 0;
-  padding: 8px;
+  padding: var(--space-md);
   overflow-y: auto;
   scrollbar-width: thin;
 }
 
 .native-task-row {
   display: grid;
-  gap: 7px;
-  padding: 8px;
+  gap: var(--space-md);
+  padding: var(--space-md);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface-soft);
 }
 
@@ -579,44 +663,40 @@ textarea::placeholder {
 .native-task-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
   min-width: 0;
 }
 
 .native-task-preview {
   margin: 0;
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
   overflow-wrap: anywhere;
 }
 
 .native-task-edit {
   display: grid;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 .native-task-edit textarea {
   min-height: 62px;
 }
 
-.native-task-actions {
-  flex-wrap: wrap;
-}
-
 .native-task-actions button {
   min-height: 26px;
-  padding: 4px 7px;
-  font-size: 11px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-xs);
 }
 
 .native-dock-empty {
-  margin: 8px;
-  padding: 10px;
+  margin: var(--space-md);
+  padding: var(--space-lg);
   border: 1px dashed var(--border-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   text-align: center;
 }
 
@@ -625,22 +705,22 @@ textarea::placeholder {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-sm);
   width: 44px;
   height: 92px;
-  border-radius: 12px 0 0 12px;
-  border: 1px solid var(--border);
+  border-radius: var(--radius-lg) 0 0 var(--radius-lg);
+  border: 1px solid var(--border-control);
   border-right: 0;
   background: var(--button);
   color: var(--button-text);
-  font-size: 15px;
+  font-size: var(--text-xl);
   font-weight: 800;
-  box-shadow: -8px 0 24px rgba(0, 0, 0, 0.16);
+  box-shadow: var(--shadow-rail);
 }
 
 .collapse-tab span {
-  font-size: 11px;
-  line-height: 1;
+  font-size: var(--text-xs);
+  line-height: var(--lh-none);
 }
 
 .resize-handle {
@@ -661,9 +741,9 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-md);
   min-height: 48px;
-  padding: 8px 10px 8px 14px;
+  padding: var(--space-md) var(--space-lg) var(--space-md) var(--space-2xl);
   border-bottom: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 86%, transparent);
 }
@@ -671,14 +751,14 @@ textarea::placeholder {
 .header-brand {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
+  gap: var(--space-md);
   min-width: 0;
 }
 
 .panel-header h1,
 .section-title-row h2 {
   margin: 0;
-  line-height: 1.2;
+  line-height: var(--lh-tight);
   letter-spacing: 0;
 }
 
@@ -686,7 +766,7 @@ textarea::placeholder {
   min-width: 0;
   overflow: hidden;
   color: var(--text);
-  font-size: 15px;
+  font-size: var(--text-xl);
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -696,8 +776,8 @@ textarea::placeholder {
   display: none;
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
 }
 
 .provider-tag {
@@ -705,14 +785,14 @@ textarea::placeholder {
   min-width: 0;
   max-width: 86px;
   overflow: hidden;
-  padding: 2px 6px;
+  padding: var(--space-2xs) var(--space-sm);
   border: 1px solid var(--provider-accent-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--provider-accent-soft);
   color: var(--provider-accent-text);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
-  line-height: 1.3;
+  line-height: var(--lh-snug);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -723,11 +803,10 @@ textarea::placeholder {
 .task-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 .header-actions {
-  flex-shrink: 0;
   flex-wrap: nowrap;
   justify-content: flex-end;
   min-width: 0;
@@ -739,12 +818,12 @@ textarea::placeholder {
   min-height: 28px;
   max-width: 92px;
   overflow: hidden;
-  padding: 0 8px;
+  padding: 0 var(--space-md);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface-soft);
   color: var(--text);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -766,32 +845,6 @@ textarea::placeholder {
   color: var(--muted);
 }
 
-.language-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  height: 30px;
-  padding: 2px;
-  border: 1px solid var(--border);
-  border-radius: 9px;
-  background: var(--surface-soft);
-}
-
-.language-toggle button {
-  min-height: 24px;
-  padding: 0 6px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--muted);
-}
-
-.language-toggle button.active {
-  background: var(--surface);
-  color: var(--text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
-}
-
 .icon-button {
   display: inline-flex;
   align-items: center;
@@ -800,7 +853,7 @@ textarea::placeholder {
   min-width: 30px;
   height: 30px;
   padding: 0;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   background: var(--button-secondary);
   color: var(--text);
 }
@@ -812,45 +865,45 @@ textarea::placeholder {
 .status-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
-  padding: 6px 10px;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-lg);
   border-bottom: 1px solid var(--border);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
   background: var(--surface);
 }
 
 .status-bar span {
   min-height: 22px;
-  padding: 2px 7px;
+  padding: var(--space-2xs) var(--space-md);
   border: 1px solid var(--provider-accent-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--provider-accent-soft);
   white-space: nowrap;
-  line-height: 16px;
+  line-height: var(--lh-normal);
 }
 
 .message-banner {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-md);
   align-items: start;
-  margin: 8px 10px;
-  padding: 8px 9px;
+  margin: var(--space-md) var(--space-lg);
+  padding: var(--space-md) var(--space-md);
   border: 1px solid var(--error-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--error-bg);
   color: var(--error-text);
-  font-size: 12px;
-  line-height: 1.38;
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
 }
 
 .panel-nav {
   display: flex;
   flex-shrink: 0;
-  gap: 4px;
+  gap: var(--space-xs);
   margin: 0;
-  padding: 8px 10px;
+  padding: var(--space-md) var(--space-lg);
   border-bottom: 1px solid var(--border);
   background: var(--surface);
   overflow-x: auto;
@@ -860,7 +913,7 @@ textarea::placeholder {
 .panel-nav button {
   flex: 1 0 auto;
   min-height: 32px;
-  padding: 6px 10px;
+  padding: var(--space-sm) var(--space-lg);
   border-color: transparent;
   background: transparent;
   color: var(--muted);
@@ -883,63 +936,155 @@ textarea::placeholder {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 12px 14px 16px;
+  padding: var(--space-xl) var(--space-2xl) var(--space-2xl);
 }
 
 .panel-section {
   display: grid;
-  gap: 14px;
+  gap: var(--space-2xl);
 }
 
 .run-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-xl);
   min-height: 100%;
+}
+
+/* The Run page stacks 7 equally-weighted regions separated only by a 12px gap,
+   which gives a scan no anchors. A light card treatment establishes region
+   boundaries without adding chrome; the composer/controls in the sticky footer
+   keep their flush treatment so the footer still reads as one surface. */
+.run-section > .provider-health-panel,
+.run-section > .controls,
+.run-section > .queue-messages-preview,
+.run-section > .queue-results-panel,
+.run-section > .run-log-panel,
+.run-section > .fanout-results-panel {
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
 }
 
 .settings-panel,
 .add-box,
-.steer-box,
 .controls,
 .save-workflow-box {
   padding: 0;
 }
 
+.secondary-run-tool {
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+}
+
 .section-title-row {
   justify-content: space-between;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-md);
 }
 
 .section-title-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 6px;
+  gap: var(--space-sm);
   min-width: 0;
 }
 
 .section-title-row.compact {
-  margin-bottom: 7px;
+  margin-bottom: var(--space-md);
 }
 
 .section-title-row h2 {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   text-transform: uppercase;
 }
 
-.add-box button,
-.steer-box button {
+.add-box button {
   width: 100%;
-  margin-top: 8px;
+  margin-top: var(--space-md);
+}
+
+.steer-actions {
+  display: grid;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--border);
+}
+
+.steer-actions button {
+  width: 100%;
+}
+
+.run-composer-actions {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.run-composer-actions button {
+  flex: 1;
+  width: auto;
+}
+
+.fanout-results-panel {
+  display: grid;
+  gap: var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.fanout-results-heading {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2xs);
+}
+
+.fanout-results-heading span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
+}
+
+.fanout-result-list {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.fanout-result-card {
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.fanout-result-pending {
+  border-color: var(--provider-accent-border);
+  background: var(--provider-accent-soft);
+}
+
+.fanout-result-done {
+  border-color: var(--diff-insert-border);
+}
+
+.fanout-result-error {
+  border-color: var(--error-border);
+  background: var(--error-bg);
+}
+
+.fanout-pending-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
 }
 
 .control-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  gap: var(--space-md);
 }
 
 .control-grid.compact-controls button {
@@ -953,7 +1098,7 @@ textarea::placeholder {
 .save-workflow-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 7px;
+  gap: var(--space-md);
   align-items: center;
 }
 
@@ -964,8 +1109,8 @@ textarea::placeholder {
 .helper-text {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.38;
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
 }
 
 .queue-messages-preview {
@@ -981,17 +1126,92 @@ textarea::placeholder {
   min-height: 0;
 }
 
+.provider-health-panel {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.provider-health-provider {
+  flex-shrink: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.provider-health-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+.provider-health-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: var(--lh-tight);
+  white-space: nowrap;
+}
+
+/* WCAG 1.4.1: state must not be conveyed by colour alone. The labels are kept
+   compact (no "found"/"missing" wording) by carrying the state in a leading
+   glyph instead, with the full state exposed to assistive tech via aria-label
+   on the element itself. */
+.provider-health-chip::before {
+  margin-right: var(--space-xs);
+  font-weight: 700;
+  content: "•";
+}
+
+.provider-health-chip.health-ok::before {
+  content: "✓";
+}
+
+.provider-health-chip.health-missing::before {
+  content: "✕";
+}
+
+.provider-health-chip.health-busy::before {
+  content: "◐";
+}
+
+.provider-health-chip.health-ok {
+  border-color: var(--provider-accent-border);
+  background: var(--provider-accent-soft);
+  color: var(--provider-accent-text);
+}
+
+.provider-health-chip.health-missing {
+  border-color: var(--error-border);
+  background: var(--error-bg);
+  color: var(--error-text);
+}
+
+.provider-health-chip.health-busy {
+  border-color: var(--warning-border);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
 .run-bottom-stack {
   position: sticky;
   bottom: -16px;
   z-index: 2;
   display: grid;
-  gap: 10px;
+  gap: var(--space-lg);
   margin: 0 -2px -16px;
-  padding: 10px 2px 16px;
+  padding: var(--space-lg) var(--space-2xs) var(--space-2xl);
   border-top: 1px solid var(--border);
-  background: color-mix(in srgb, var(--bg) 94%, transparent);
-  box-shadow: 0 -12px 24px rgba(0, 0, 0, 0.06);
+  /* Was 94% opaque, so list text scrolling underneath bled through and read
+     as a rendering glitch rather than as a fixed footer. */
+  background: var(--bg);
+  box-shadow: var(--shadow-up);
 }
 
 .run-composer-box textarea {
@@ -1000,13 +1220,13 @@ textarea::placeholder {
 
 .run-log-panel {
   display: grid;
-  gap: 7px;
+  gap: var(--space-md);
   min-height: 0;
 }
 
 .run-log-list {
   display: grid;
-  gap: 6px;
+  gap: var(--space-sm);
   max-height: 150px;
   overflow: auto;
   scrollbar-width: thin;
@@ -1015,12 +1235,12 @@ textarea::placeholder {
 .run-log-entry {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
-  gap: 4px 8px;
+  gap: var(--space-xs) var(--space-md);
   align-items: center;
-  padding: 7px 8px;
+  padding: var(--space-md) var(--space-md);
   border: 1px solid var(--border);
   border-left: 3px solid var(--provider-accent-border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -1040,45 +1260,45 @@ textarea::placeholder {
 .run-log-status {
   align-self: start;
   color: var(--muted);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 900;
-  line-height: 1.3;
+  line-height: var(--lh-snug);
   text-transform: uppercase;
 }
 
 .run-log-prompt {
   min-width: 0;
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.32;
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
   overflow-wrap: anywhere;
 }
 
 .run-log-meta {
   grid-column: 2;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.25;
+  font-size: var(--text-xs);
+  line-height: var(--lh-tight);
 }
 
 .compare-panel {
-  gap: 12px;
+  gap: var(--space-xl);
   min-height: 100%;
 }
 
 .compare-input-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+  gap: var(--space-lg);
 }
 
 .compare-field {
   display: grid;
-  gap: 7px;
+  gap: var(--space-md);
   min-width: 0;
-  padding: 10px;
+  padding: var(--space-lg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -1086,35 +1306,35 @@ textarea::placeholder {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: var(--space-md);
   min-width: 0;
 }
 
 .compare-field-head strong {
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.25;
+  font-size: var(--text-sm);
+  line-height: var(--lh-tight);
 }
 
 .compare-field-head span {
   flex-shrink: 0;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.25;
+  font-size: var(--text-xs);
+  line-height: var(--lh-tight);
 }
 
 .compare-field textarea {
   min-height: 148px;
   max-height: 280px;
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.52;
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
   resize: vertical;
 }
 
 .compare-result-shell {
   display: grid;
-  gap: 9px;
+  gap: var(--space-md);
   min-height: 0;
 }
 
@@ -1123,7 +1343,7 @@ textarea::placeholder {
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-md);
   min-width: 0;
 }
 
@@ -1133,7 +1353,7 @@ textarea::placeholder {
 .compare-legend {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 .compare-stat-list {
@@ -1150,22 +1370,22 @@ textarea::placeholder {
 
 .compare-copy-message {
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
 }
 
 .diff-stat {
   display: inline-flex;
   align-items: center;
   min-height: 26px;
-  padding: 3px 8px;
+  padding: var(--space-xs) var(--space-md);
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: var(--surface);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 800;
-  line-height: 1.2;
+  line-height: var(--lh-tight);
   white-space: nowrap;
 }
 
@@ -1197,10 +1417,10 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
+  gap: var(--space-xs);
   min-width: 0;
   min-height: 30px;
-  padding: 5px 8px;
+  padding: var(--space-xs) var(--space-md);
   white-space: nowrap;
 }
 
@@ -1216,38 +1436,38 @@ textarea::placeholder {
 .compare-segment {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-xs);
   min-height: 30px;
-  padding: 3px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  padding: var(--space-xs);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
   background: var(--surface);
 }
 
 .compare-segment-label {
-  padding: 0 5px;
+  padding: 0 var(--space-xs);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 800;
-  line-height: 1.2;
+  line-height: var(--lh-tight);
   white-space: nowrap;
 }
 
 .compare-segment-buttons {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2xs);
 }
 
 .compare-segment-buttons button {
   min-height: 24px;
-  padding: 3px 8px;
+  padding: var(--space-xs) var(--space-md);
   border-color: transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.2;
+  font-size: var(--text-xs);
+  line-height: var(--lh-tight);
 }
 
 .compare-segment-buttons button.active {
@@ -1267,26 +1487,26 @@ textarea::placeholder {
 .compare-toggle {
   justify-content: flex-start;
   min-height: 28px;
-  padding: 4px 8px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
   background: var(--surface);
   color: var(--text);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 700;
 }
 
 .compare-legend {
   flex-wrap: wrap;
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
 }
 
 .compare-legend span {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .legend-mark {
@@ -1294,9 +1514,9 @@ textarea::placeholder {
   place-items: center;
   width: 18px;
   height: 18px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 900;
 }
 
@@ -1316,13 +1536,13 @@ textarea::placeholder {
 }
 
 .compare-empty-state {
-  padding: 24px 14px;
+  padding: var(--space-3xl) var(--space-2xl);
   border: 1px dashed var(--border-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
   text-align: center;
 }
 
@@ -1331,7 +1551,7 @@ textarea::placeholder {
   min-height: 170px;
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
   scrollbar-width: thin;
 }
@@ -1358,11 +1578,11 @@ textarea::placeholder {
 
 .diff-split-header span {
   min-width: 0;
-  padding: 8px 10px;
+  padding: var(--space-md) var(--space-lg);
   color: var(--muted);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-weight: 800;
-  line-height: 1.2;
+  line-height: var(--lh-tight);
   text-transform: uppercase;
 }
 
@@ -1393,8 +1613,8 @@ textarea::placeholder {
   background: var(--surface);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 12px;
-  line-height: 1.48;
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
 }
 
 .compare-unified-view .diff-line {
@@ -1410,8 +1630,8 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 18px;
   align-items: start;
-  gap: 4px;
-  padding: 6px 6px;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-sm);
   background: var(--diff-gutter-bg);
   color: var(--muted);
   user-select: none;
@@ -1434,13 +1654,13 @@ textarea::placeholder {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  margin: 5px 0;
-  border-radius: 999px;
+  margin: var(--space-xs) 0;
+  border-radius: var(--radius-pill);
   color: var(--muted);
   font-family: var(--font-ui);
-  font-size: 10px;
+  font-size: var(--text-xs);
   font-weight: 800;
-  line-height: 1;
+  line-height: var(--lh-none);
 }
 
 .diff-line-equal .diff-side-badge {
@@ -1449,7 +1669,7 @@ textarea::placeholder {
 
 .diff-line-content {
   min-width: 0;
-  padding: 6px 8px;
+  padding: var(--space-sm) var(--space-md);
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
@@ -1491,12 +1711,12 @@ textarea::placeholder {
 .diff-empty-placeholder {
   color: var(--muted-2);
   font-family: var(--font-ui);
-  font-size: 11px;
+  font-size: var(--text-xs);
   font-style: italic;
 }
 
 .diff-token {
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
 }
 
 .diff-token-insert {
@@ -1520,15 +1740,39 @@ textarea::placeholder {
   }
 }
 
+@container (max-width: 559px) {
+  .compare-split-view {
+    min-width: 640px;
+  }
+
+  .diff-line {
+    grid-template-columns: 54px minmax(0, 1fr);
+    font-size: var(--text-xs);
+  }
+
+  .compare-unified-view .diff-line {
+    grid-template-columns: 54px 28px minmax(0, 1fr);
+  }
+
+  .diff-gutter {
+    gap: var(--space-2xs);
+    padding: var(--space-sm) var(--space-xs);
+  }
+
+  .diff-line-content {
+    padding: var(--space-sm);
+  }
+}
+
 .mini-action {
   min-height: 26px;
-  padding: 4px 8px;
-  font-size: 11px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-xs);
 }
 
 .queue-message-list {
   display: grid;
-  gap: 7px;
+  gap: var(--space-md);
   max-height: 230px;
   margin: 0;
   padding: 0;
@@ -1540,11 +1784,11 @@ textarea::placeholder {
 .queue-message-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-md);
   align-items: center;
-  padding: 9px;
+  padding: var(--space-md);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -1555,112 +1799,182 @@ textarea::placeholder {
 .queue-message-meta {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 5px;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
 }
 
 .queue-message-index {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 800;
 }
 
 .queue-message-row p {
   margin: 0;
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
   overflow-wrap: anywhere;
 }
 
 .queue-message-actions {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 5px;
+  gap: var(--space-xs);
 }
 
 .queue-message-actions button {
   min-height: 26px;
-  padding: 4px 8px;
-  font-size: 11px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-xs);
 }
 
 .queue-message-edit {
   display: grid;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 .queue-message-edit textarea {
   min-height: 58px;
 }
 
+/* These are <label> wrappers, so the whole row is the hit target. It used to
+   collapse to ~19px because the checkbox reset to the UA's 13px and the row
+   had no min-height, landing under the 24x24 WCAG 2.2 target minimum. */
 .mini-toggle,
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: var(--space-lg);
+  min-height: 28px;
+  cursor: pointer;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
+}
+
+.setting-row {
+  margin: var(--space-md) 0;
 }
 
 .mini-toggle input,
 .setting-row input {
-  width: auto;
-  height: auto;
+  width: 16px;
+  min-width: 16px;
+  height: 16px;
+  margin: 0;
+  cursor: pointer;
+  accent-color: var(--provider-accent);
 }
 
 .field {
   display: grid;
-  gap: 5px;
-  margin-top: 8px;
+  gap: var(--space-xs);
+  margin-top: var(--space-md);
   color: var(--muted);
-  font-size: 12px;
-}
-
-.setting-row {
-  margin: 8px 0;
+  font-size: var(--text-sm);
 }
 
 .settings-panel {
   margin: 0;
-  padding: 10px;
+  padding: var(--space-lg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
 .settings-panel > button {
   width: 100%;
-  margin-top: 10px;
+  margin-top: var(--space-lg);
 }
 
 .settings-disclosure {
-  margin-top: 10px;
+  margin-top: var(--space-lg);
 }
 
 .advanced-settings {
   display: grid;
-  gap: 10px;
-  margin-top: 10px;
-  padding-top: 10px;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+  padding-top: var(--space-lg);
   border-top: 1px solid var(--border);
 }
 
 .advanced-settings-title {
   display: grid;
-  gap: 3px;
+  gap: var(--space-xs);
 }
 
 .advanced-settings-title strong {
   color: var(--text);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 .advanced-settings-title span {
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
+}
+
+.settings-group {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.settings-group + .settings-group {
+  margin-top: var(--space-2xl);
+  padding-top: var(--space-2xl);
+  border-top: 1px solid var(--border);
+}
+
+.field-hint {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
+}
+
+.badge {
+  display: inline-block;
+  margin-left: var(--space-sm);
+  padding: 1px var(--space-md);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+}
+
+.badge-experimental {
+  background: var(--warning-bg);
+  border: 1px solid var(--warning-border);
+  color: var(--warning-text);
+}
+
+.sync-card {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+.sync-actions {
+  display: flex;
+  gap: var(--space-md);
+}
+
+.sync-status {
+  font-size: var(--text-sm);
+}
+
+.sync-status-error {
+  color: var(--error-text);
+}
+
+.sync-status-success {
+  color: var(--done);
 }
 
 .message-dismiss {
@@ -1672,11 +1986,11 @@ textarea::placeholder {
   min-height: 24px;
   padding: 0;
   border-color: var(--error-border);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   background: transparent;
   color: var(--error-text);
-  font-size: 13px;
-  line-height: 1;
+  font-size: var(--text-md);
+  line-height: var(--lh-none);
 }
 
 .message-dismiss:hover:not(:disabled) {
@@ -1685,10 +1999,10 @@ textarea::placeholder {
 
 .provider-model-setting {
   display: grid;
-  gap: 6px;
-  padding: 8px;
+  gap: var(--space-sm);
+  padding: var(--space-md);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface-soft);
 }
 
@@ -1702,62 +2016,105 @@ textarea::placeholder {
   position: sticky;
   top: 0;
   z-index: 2;
-  padding: 0 0 7px;
+  padding: 0 0 var(--space-md);
   background: var(--bg);
 }
 
 .task-item {
-  margin-bottom: 9px;
-  padding: 10px;
+  margin-bottom: var(--space-md);
+  padding: var(--space-lg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
 .workflow-card {
   display: grid;
-  gap: 8px;
-  margin-bottom: 9px;
-  padding: 10px;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+  padding: var(--space-lg);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
 .workflow-template-list {
   display: grid;
-  gap: 7px;
-  margin-bottom: 9px;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+}
+
+.workflow-filter-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(118px, 0.36fr);
+  gap: var(--space-md);
+  align-items: center;
+  margin-bottom: var(--space-md);
 }
 
 .workflow-template-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
+  gap: var(--space-md);
   align-items: center;
-  padding: 9px;
+  padding: var(--space-md);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface-soft);
 }
 
 .workflow-template-item div {
   display: grid;
-  gap: 3px;
+  gap: var(--space-xs);
   min-width: 0;
 }
 
 .workflow-template-item strong {
   color: var(--text);
-  font-size: 12px;
-  line-height: 1.25;
+  font-size: var(--text-sm);
+  line-height: var(--lh-tight);
 }
 
 .workflow-template-item span {
   color: var(--muted);
-  font-size: 11px;
-  line-height: 1.35;
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
   overflow-wrap: anywhere;
+}
+
+.workflow-tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+  min-width: 0;
+  margin-top: var(--space-sm);
+}
+
+.workflow-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: var(--space-2xs) var(--space-md);
+  border: 1px solid var(--provider-accent-border);
+  border-radius: var(--radius-pill);
+  background: var(--provider-accent-soft);
+  color: var(--provider-accent-text);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  line-height: var(--lh-tight);
+}
+
+/* Interactive variant (removable tag) must clear the 24x24 target minimum;
+   the non-interactive .workflow-tag span may stay compact. */
+button.workflow-tag {
+  min-height: 24px;
+  padding: var(--space-2xs) var(--space-md);
+}
+
+.workflow-tag.removable {
+  border-color: var(--border);
+  background: var(--surface);
+  color: var(--text);
 }
 
 .workflow-variable-backdrop {
@@ -1766,26 +2123,97 @@ textarea::placeholder {
   z-index: 20;
   display: grid;
   place-items: center;
-  padding: 16px;
+  padding: var(--space-2xl);
   background: rgba(15, 23, 42, 0.32);
 }
 
 .workflow-variable-modal {
   display: grid;
-  gap: 10px;
+  gap: var(--space-lg);
   width: min(100%, 520px);
   max-height: min(76vh, 620px);
-  padding: 12px;
+  padding: var(--space-xl);
   overflow: auto;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--bg);
-  box-shadow: var(--shadow);
+  /* was var(--shadow), a token that is never defined anywhere, so the modal
+     rendered flat against its backdrop */
+  box-shadow: var(--shadow-md);
 }
 
 .workflow-variable-list {
   display: grid;
-  gap: 8px;
+  gap: var(--space-md);
+}
+
+.workflow-variable-mode-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-2xs);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+}
+
+.workflow-variable-mode-toggle button {
+  flex: 1;
+  min-height: 26px;
+  padding: 0 var(--space-lg);
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.workflow-variable-mode-toggle button.active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+}
+
+.workflow-variable-table-input {
+  width: 100%;
+  min-height: 120px;
+  padding: var(--space-md);
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--lh-normal);
+  resize: vertical;
+}
+
+.workflow-variable-preview {
+  display: grid;
+  gap: var(--space-xs);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+}
+
+.workflow-variable-preview strong {
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+
+.workflow-variable-preview span,
+.workflow-variable-preview li {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  line-height: var(--lh-snug);
+}
+
+.workflow-variable-preview ol {
+  display: grid;
+  gap: var(--space-xs);
+  margin: 0;
+  padding-left: var(--space-2xl);
 }
 
 .workflow-variable-modal > button {
@@ -1795,7 +2223,7 @@ textarea::placeholder {
 .workflow-card-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 9px;
+  gap: var(--space-md);
   align-items: center;
 }
 
@@ -1806,16 +2234,16 @@ textarea::placeholder {
 .workflow-card-title h3 {
   margin: 0;
   color: var(--text);
-  font-size: 14px;
-  line-height: 1.25;
+  font-size: var(--text-lg);
+  line-height: var(--lh-tight);
   overflow-wrap: anywhere;
 }
 
 .workflow-card-title p {
-  margin: 4px 0 0;
+  margin: var(--space-xs) 0 0;
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
 }
 
 .workflow-card-drag-button,
@@ -1846,51 +2274,72 @@ textarea::placeholder {
 .workflow-rename-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 .workflow-card-actions {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
 }
 
 .workflow-card-actions button {
   min-height: 30px;
-  padding: 5px 8px;
-  font-size: 12px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
 }
 
 .workflow-editor {
   display: grid;
-  gap: 9px;
-  padding-top: 8px;
+  gap: var(--space-md);
+  padding-top: var(--space-md);
   border-top: 1px solid var(--border);
 }
 
 .workflow-name-editor {
   display: grid;
-  gap: 5px;
+  gap: var(--space-xs);
 }
 
 .workflow-name-editor label {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
 .workflow-add-message {
   display: grid;
-  gap: 7px;
+  gap: var(--space-md);
 }
 
 .workflow-add-message textarea {
   min-height: 64px;
 }
 
+.workflow-tag-editor {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.workflow-tag-editor > span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.workflow-tag-input-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-md);
+}
+
+.workflow-tag-input-row button {
+  min-width: 78px;
+}
+
 .workflow-message-list {
   display: grid;
-  gap: 7px;
+  gap: var(--space-md);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1898,10 +2347,10 @@ textarea::placeholder {
 
 .workflow-message-item {
   display: grid;
-  gap: 8px;
-  padding: 9px;
+  gap: var(--space-md);
+  padding: var(--space-md);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   background: var(--surface-soft);
 }
 
@@ -1912,14 +2361,14 @@ textarea::placeholder {
 .workflow-message-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-sm);
 }
 
 .workflow-message-item p {
   margin: 0;
   color: var(--text);
-  font-size: 13px;
-  line-height: 1.42;
+  font-size: var(--text-md);
+  line-height: var(--lh-normal);
   overflow-wrap: anywhere;
 }
 
@@ -1932,7 +2381,7 @@ textarea::placeholder {
 }
 
 .task-header {
-  margin-bottom: 8px;
+  margin-bottom: var(--space-md);
 }
 
 .drag-handle {
@@ -1942,54 +2391,48 @@ textarea::placeholder {
 .task-index {
   min-width: 34px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
+/* The --pending/--running/--done/--failed/--skipped tokens are authored as
+   TEXT colors that stay readable on each theme's background (dark in light
+   themes, light in dark themes). Using them as a solid fill under hardcoded
+   white text inverted that role and dropped to 1.7-2.8:1 in every dark theme.
+   Tint + colored text keeps the token in its intended role, so all
+   provider x theme combinations pass without per-theme overrides. */
 .status-chip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 22px;
-  border-radius: 999px;
-  padding: 0 8px;
-  color: #ffffff;
-  font-size: 11px;
+  padding: 0 var(--space-md);
+  border: 1px solid color-mix(in srgb, currentColor 38%, transparent);
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  font-size: var(--text-xs);
   font-weight: 700;
-  line-height: 1;
-}
-
-button.status-toggle {
-  border: 0;
-  cursor: pointer;
-}
-
-button.status-toggle:not(:disabled):hover {
-  filter: brightness(1.05);
-}
-
-button.status-toggle:disabled {
-  opacity: 1;
+  line-height: var(--lh-none);
 }
 
 .status-pending {
-  background: var(--pending);
+  color: var(--pending);
 }
 
 .status-running {
-  background: var(--running);
+  color: var(--running);
 }
 
 .status-done {
-  background: var(--done);
+  color: var(--done);
 }
 
 .status-failed {
-  background: var(--failed);
+  color: var(--failed);
 }
 
 .status-skipped {
-  background: var(--skipped);
+  color: var(--skipped);
 }
 
 .expand-button {
@@ -1997,19 +2440,41 @@ button.status-toggle:disabled {
 }
 
 .task-preview {
-  margin: 0 0 9px;
+  margin: 0 0 var(--space-md);
   color: var(--text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 13px;
-  line-height: 1.45;
+  font-size: var(--text-md);
+  line-height: var(--lh-normal);
 }
 
 .task-error {
-  margin: 0 0 8px;
+  margin: 0 0 var(--space-md);
   color: var(--error-text);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
+}
+
+.task-result {
+  margin: 0 0 var(--space-md);
+  font-size: var(--text-sm);
+}
+
+.task-result summary {
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.task-result-text {
+  margin: var(--space-sm) 0 0;
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  color: var(--text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: var(--lh-normal);
 }
 
 .task-edit textarea {
@@ -2022,8 +2487,8 @@ button.status-toggle:disabled {
 
 .task-actions button {
   min-height: 28px;
-  padding: 5px 8px;
-  font-size: 12px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
 }
 
 .empty-state {
@@ -2031,25 +2496,31 @@ button.status-toggle:disabled {
   place-items: center;
   min-height: 118px;
   border: 1px dashed var(--border-strong);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   color: var(--muted);
-  font-size: 13px;
+  font-size: var(--text-md);
   text-align: center;
 }
 
 .compact-empty {
   min-height: 74px;
-  padding: 12px;
+  padding: var(--space-xl);
+}
+
+.settings-support-footer {
+  margin-top: var(--space-2xl);
+  padding-top: var(--space-2xl);
+  border-top: 1px solid var(--border);
 }
 
 .donate-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: 10px;
+  gap: var(--space-lg);
   align-items: start;
-  padding: 12px;
+  padding: var(--space-xl);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface);
 }
 
@@ -2059,20 +2530,20 @@ button.status-toggle:disabled {
 
 .donate-copy {
   display: grid;
-  gap: 2px;
+  gap: var(--space-2xs);
   min-width: 0;
 }
 
 .donate-copy strong {
   color: var(--text);
-  font-size: 14px;
-  line-height: 1.25;
+  font-size: var(--text-lg);
+  line-height: var(--lh-tight);
 }
 
 .donate-copy span {
   color: var(--muted);
-  font-size: 12px;
-  line-height: 1.35;
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
 }
 
 .donate-card img {
@@ -2080,7 +2551,7 @@ button.status-toggle:disabled {
   aspect-ratio: 1 / 1.35;
   justify-self: center;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   object-fit: cover;
   object-position: center top;
   background: #ffffff;
@@ -2092,10 +2563,10 @@ button.status-toggle:disabled {
   justify-content: center;
   min-height: 36px;
   border: 1px solid var(--border);
-  border-radius: 9px;
+  border-radius: var(--radius-md);
   background: var(--button);
   color: var(--button-text);
-  font-size: 12px;
+  font-size: var(--text-sm);
   font-weight: 700;
   transition:
     background 150ms ease,
@@ -2122,9 +2593,9 @@ button.status-toggle:disabled {
 .error-fallback {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 16px;
-  font-size: 13px;
+  gap: var(--space-md);
+  padding: var(--space-2xl);
+  font-size: var(--text-md);
 }
 
 .error-fallback-title {
@@ -2136,13 +2607,13 @@ button.status-toggle:disabled {
 .error-fallback-detail {
   margin: 0;
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-sm);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .error-fallback-actions {
-  margin-top: 4px;
+  margin-top: var(--space-xs);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2151,24 +2622,25 @@ button.status-toggle:disabled {
   }
 }
 
+/* Viewport-level. Only rules targeting the container element itself belong
+   here: a container query cannot style its own container, and .queue-shell
+   declares container-type. Everything else moved to @container below. */
 @media (max-width: 520px) {
   .queue-shell {
-    width: calc(100vw - 8px) !important;
     min-width: 0;
   }
 
-  .status-bar,
-  .control-grid,
-  .control-grid.two,
-  .save-workflow-form,
-  .workflow-rename-row {
-    grid-template-columns: 1fr;
+  .queue-shell.native-queue-dock {
+    border-radius: var(--radius-lg);
   }
+}
 
-  .panel-nav button {
-    flex: 0 0 auto;
-  }
-
+/* Panel-width-level. The panel is user-resizable (300-720px) independently of
+   the window size, so layout must react to the panel's own inline size. These
+   were previously written as @media, which measured the viewport and therefore
+   never fired on a desktop window.
+   460px is where the header runs out of room for the brand block. */
+@container (max-width: 460px) {
   .panel-header {
     grid-template-columns: minmax(0, 1fr) auto;
     align-items: center;
@@ -2183,9 +2655,22 @@ button.status-toggle:disabled {
   .run-status-pill {
     max-width: 72px;
   }
+}
 
-  .queue-shell.native-queue-dock {
-    border-radius: 14px;
+/* Genuinely cramped. Kept well below the 380px default so the normal layout
+   is not degraded by stacking every two-column grid. */
+@container (max-width: 340px) {
+  /* .status-bar was listed here originally but it is display:flex with
+     flex-wrap, so grid-template-columns never did anything. */
+  .control-grid,
+  .control-grid.two,
+  .save-workflow-form,
+  .workflow-rename-row {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-nav button {
+    flex: 0 0 auto;
   }
 
   .native-dock-header {

@@ -2,9 +2,14 @@
   "manifest_version": 3,
   "default_locale": "en",
   "name": "__MSG_extensionName__",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "__MSG_extensionDescription__",
-  "permissions": ["storage", "contextMenus"],
+  "permissions": ["storage", "contextMenus", "notifications"],
+  "optional_permissions": ["identity"],
+  "oauth2": {
+    "client_id": "YOUR_GOOGLE_OAUTH_CLIENT_ID",
+    "scopes": ["https://www.googleapis.com/auth/drive.appdata"]
+  },
   "host_permissions": [
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",

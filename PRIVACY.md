@@ -2,9 +2,9 @@
 
 PromptQueue 隐私权政策
 
-Last updated: 2026-06-08
+Last updated: 2026-08-13
 
-最后更新：2026-06-08
+最后更新：2026-08-13
 
 ## English
 
@@ -29,6 +29,7 @@ PromptQueue stores the following data only in `chrome.storage.local` on your dev
 
 - current queue tasks
 - saved workflows
+- workflow tags
 - extension settings
 - language preference
 - panel collapsed state and panel width
@@ -41,23 +42,32 @@ Text Compare input is session-only. The original and revised text you paste into
 
 Workflow variable values are also session-only. They are used to create ordinary queue messages when you run a workflow and are not stored as separate variable history.
 
+Page Check reads visible DOM availability for the current supported AI page, including whether the composer, send button, stop button, and busy indicators are visible. This check is local, does not upload page content, and stores only ordinary run-log failure stages when a queue task fails.
+
+**Optional: reply capture.** Settings includes an off-by-default "Capture reply text" toggle, separate from Page Check. When you turn it on, after a queued task's reply finishes generating, PromptQueue reads the visible text of that reply and stores it locally on the completed task so you can review or export it. This is off by default, is never uploaded, and you can turn it off or delete captured results (individually, via "Clear Done", or by clearing extension storage) at any time.
+
 Right-click context actions are created only when you choose a PromptQueue browser context-menu item. If the action starts from a non-supported webpage, it is stored briefly until a supported AI page opens and consumes it into the queue; consumed actions are cleared immediately.
 
 You can remove this data by clearing the extension storage, uninstalling the extension, or using the extension's queue/workflow clear controls.
 
 ### Permissions
 
-PromptQueue requests only:
+By default, PromptQueue requests only:
 
 - `storage`, used to save queue, workflow, and settings data locally
 - `contextMenus`, used to show user-initiated right-click actions for selected text and page context
+- `notifications`, used only to show a local system notification when a queue you started finishes running (Settings, on by default, no data leaves your device)
 - host permissions for supported AI chat pages:
   - `https://chatgpt.com/*`
   - `https://chat.openai.com/*`
   - `https://gemini.google.com/*`
   - `https://claude.ai/*`
 
-PromptQueue does not request `tabs`, `cookies`, `webRequest`, `scripting`, `activeTab`, or other sensitive permissions.
+PromptQueue does not request `tabs`, `cookies`, `webRequest`, `scripting`, `activeTab`, or other sensitive permissions by default.
+
+**Ask All Providers (fan-out).** The Run page has an "Ask All Providers" button that sends your current draft prompt to every other supported AI page tab you already have open, using the host permissions above — it does not open new tabs, does not read tabs you haven't granted host permission for, and never sends data outside your browser. Each tab runs the prompt independently and reports its reply back to the tab that started the broadcast; nothing is written to the shared queue, so it will not interfere with a queue you are already running elsewhere.
+
+**Optional: Google Drive backup (experimental).** Settings includes an experimental, opt-in "Backup to Cloud" feature. It is off by default and does nothing until you click it. The first time you use it, Chrome will ask you to grant the `identity` permission so PromptQueue can request a Google OAuth token with the `drive.appdata` scope. This scope only grants access to a private `appDataFolder` on your own Google Drive that is invisible to you in the normal Drive UI and to other apps — it cannot read, list, or modify any of your other Drive files. This feature currently uploads only your settings and workflows (not queue tasks or run logs) as a full-overwrite backup, not incremental sync. You can revoke this permission at any time from your browser's extension permission settings or your Google Account's third-party access page.
 
 ### How PromptQueue Works
 
@@ -108,6 +118,7 @@ PromptQueue 只会在你设备上的 `chrome.storage.local` 中保存以下数�
 
 - 当前队列任务
 - 已保存工作流
+- 工作流标签
 - 扩展设置
 - 语言偏好
 - 面板折叠状态和面板宽度
@@ -120,23 +131,32 @@ PromptQueue 只会在你设备上的 `chrome.storage.local` 中保存以下数�
 
 工作流变量值也只在当前会话中使用。它们会在运行工作流时生成普通队列消息，不会作为单独的变量历史保存。
 
+页面检测只读取当前支持 AI 网页上的可见 DOM 状态，包括输入框、发送按钮、停止按钮和忙碌指示是否可见。该检测完全在本地进行，不上传页面内容；只有队列任务失败时，运行记录会保存普通的失败阶段标记。
+
+**可选功能：回复采集。** 设置中有一个默认关闭、与页面检测相互独立的"采集回复文本"开关。开启后，队列任务的回复生成完毕后，PromptQueue 会读取该回复的可见文本，保存在这条已完成任务上，供你查看或导出。该功能默认关闭、不会上传，你可以随时关闭它，也可以随时删除已采集的结果（单条删除、用"清理完成"批量删除，或清空扩展存储）。
+
 右键上下文 action 只会在你主动选择 PromptQueue 浏览器右键菜单项时创建。如果 action 来自非支持网页，它会被短暂保存，直到支持的 AI 页面打开并消费进队列；消费完成后会立即清除。
 
 你可以通过清空扩展存储、卸载扩展，或使用扩展内的队列/工作流清理功能删除这些数据。
 
 ### 权限
 
-PromptQueue 只请求：
+默认情况下，PromptQueue 只请求：
 
 - `storage`：用于在本地保存队列、工作流和设置
 - `contextMenus`：用于显示由用户主动触发的选中文本和页面上下文右键菜单
+- `notifications`：仅用于在你发起的队列跑完时显示一条本地系统通知（设置中默认开启，不会传输任何数据）
 - 支持的 AI 对话网页 host permissions：
   - `https://chatgpt.com/*`
   - `https://chat.openai.com/*`
   - `https://gemini.google.com/*`
   - `https://claude.ai/*`
 
-PromptQueue 不申请 `tabs`、`cookies`、`webRequest`、`scripting`、`activeTab` 或其他敏感权限。
+PromptQueue 默认不申请 `tabs`、`cookies`、`webRequest`、`scripting`、`activeTab` 或其他敏感权限。
+
+**同时问三家（并行广播）。** 运行页有一个"同时问三家"按钮，会把你当前输入框里的草稿 prompt 发送给你已经打开的其他受支持 AI 页面标签，使用的正是上面这几条 host permissions——不会打开新标签页，不会读取你没有授权的标签页，也不会把数据发送到浏览器之外。每个标签页各自独立执行并把回复结果传回发起广播的那个标签页；这个过程不会写入共享队列，因此不会干扰你在其他地方正在运行的队列。
+
+**可选功能：Google Drive 云备份（实验性）。** 设置面板中有一个默认关闭、需要你主动点击才会生效的实验性"备份到云端"功能。你第一次使用它时，Chrome 会请求你授予 `identity` 权限，以便 PromptQueue 申请一个带有 `drive.appdata` 范围的 Google OAuth token。该范围只允许访问你自己 Google Drive 中一个专属、对你和其他应用都不可见的 `appDataFolder`，无法读取、列出或修改你 Drive 中的任何其他文件。该功能目前只会备份你的设置和工作流（不包含队列任务和运行记录），是全量覆盖式备份，不是增量同步。你可以随时在浏览器扩展权限设置或 Google 账号的第三方访问权限页面撤销这项授权。
 
 ### 工作方式
 

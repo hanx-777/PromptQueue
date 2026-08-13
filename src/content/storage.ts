@@ -1,6 +1,7 @@
 import type {
   QueueRunLogEntry,
   QueueRunLogStatus,
+  QueueFailureStage,
   QueueSettings,
   QueueState,
   QueueTask,
@@ -10,6 +11,7 @@ import type {
 } from "./types";
 import { DEFAULT_PROVIDER_MODELS, normalizeProviderModels } from "./modelSettings";
 import { getErrorMessage, logWarn } from "../utils/logger";
+import { normalizeWorkflowTags } from "../utils/workflows";
 
 const STATE_KEY = "chatgptQueueSteer.state";
 const SETTINGS_KEY = "chatgptQueueSteer.settings";
@@ -17,6 +19,13 @@ const WORKFLOWS_KEY = "chatgptQueueSteer.workflows";
 
 const VALID_STATUSES: TaskStatus[] = ["pending", "running", "done", "failed", "skipped"];
 const VALID_RUN_LOG_STATUSES: QueueRunLogStatus[] = ["started", "done", "failed", "retrying", "skipped"];
+const VALID_FAILURE_STAGES: QueueFailureStage[] = [
+  "composer-missing",
+  "send-button-missing",
+  "model-select-warning",
+  "pre-send-failed",
+  "reply-timeout"
+];
 const MAX_RUN_LOG_ENTRIES = 100;
 
 export const DEFAULT_SETTINGS: QueueSettings = {
@@ -32,13 +41,17 @@ export const DEFAULT_SETTINGS: QueueSettings = {
   language: "zh",
   providerModels: DEFAULT_PROVIDER_MODELS,
   collapsed: false,
-  panelWidth: 380
+  panelWidth: 380,
+  captureReplies: false,
+  notifyOnQueueComplete: true,
+  rateLimitWarningEnabled: true
 };
 
 export const DEFAULT_STATE: QueueState = {
   tasks: [],
   isRunning: false,
-  isPaused: false
+  isPaused: false,
+  revision: 0
 };
 
 export const DEFAULT_WORKFLOWS: QueueWorkflow[] = [];
@@ -159,7 +172,10 @@ function normalizeRunLogEntry(value: unknown): QueueRunLogEntry | null {
     startedAt: typeof value.startedAt === "number" ? value.startedAt : now,
     endedAt: typeof value.endedAt === "number" ? value.endedAt : undefined,
     attemptCount: normalizeNumber(value.attemptCount, 1, 1, 100),
-    error: typeof value.error === "string" ? value.error : undefined
+    error: typeof value.error === "string" ? value.error : undefined,
+    failureStage: VALID_FAILURE_STAGES.includes(value.failureStage as QueueFailureStage)
+      ? (value.failureStage as QueueFailureStage)
+      : undefined
   };
 }
 
@@ -212,6 +228,7 @@ function normalizeWorkflow(value: unknown): QueueWorkflow | null {
     id: typeof value.id === "string" && value.id ? value.id : `${now}-${Math.random().toString(36).slice(2)}`,
     name,
     messages,
+    tags: normalizeWorkflowTags(value.tags),
     createdAt: typeof value.createdAt === "number" ? value.createdAt : now,
     updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : now
   };
@@ -256,7 +273,10 @@ function normalizeSettings(value: unknown): QueueSettings {
     language,
     providerModels: normalizeProviderModels(value.providerModels),
     collapsed: typeof value.collapsed === "boolean" ? value.collapsed : DEFAULT_SETTINGS.collapsed,
-    panelWidth: normalizeNumber(value.panelWidth, DEFAULT_SETTINGS.panelWidth, 300, 720)
+    panelWidth: normalizeNumber(value.panelWidth, DEFAULT_SETTINGS.panelWidth, 300, 720),
+    captureReplies: typeof value.captureReplies === "boolean" ? value.captureReplies : DEFAULT_SETTINGS.captureReplies,
+    notifyOnQueueComplete: typeof value.notifyOnQueueComplete === "boolean" ? value.notifyOnQueueComplete : DEFAULT_SETTINGS.notifyOnQueueComplete,
+    rateLimitWarningEnabled: typeof value.rateLimitWarningEnabled === "boolean" ? value.rateLimitWarningEnabled : DEFAULT_SETTINGS.rateLimitWarningEnabled
   };
 }
 
@@ -317,7 +337,9 @@ function normalizeState(value: unknown, normalizeReload: boolean): QueueState {
         : undefined,
     lastError: typeof value.lastError === "string" ? value.lastError : undefined,
     reloadWarning,
-    runLog: normalizeRunLog(value.runLog)
+    runLog: normalizeRunLog(value.runLog),
+    revision: typeof value.revision === "number" && Number.isFinite(value.revision) ? value.revision : 0,
+    rateLimitWarning: typeof value.rateLimitWarning === "string" ? value.rateLimitWarning : undefined
   };
 }
 
@@ -335,7 +357,19 @@ export async function loadState(): Promise<QueueState> {
 }
 
 export async function saveState(state: QueueState): Promise<void> {
+  const raw = await storageGet([STATE_KEY]);
+  const storedRevision = isObject(raw[STATE_KEY]) && typeof raw[STATE_KEY].revision === "number"
+    ? (raw[STATE_KEY].revision as number)
+    : 0;
+
+  if (typeof state.revision === "number" && state.revision !== storedRevision) {
+    logWarn(
+      `saveState: write was based on revision ${state.revision} but storage is now at revision ${storedRevision}. Another tab likely wrote in between; proceeding with a last-write-wins update.`
+    );
+  }
+
   const safeState = normalizeState(state, false);
+  safeState.revision = storedRevision + 1;
   memoryState = safeState;
   await storageSet({ [STATE_KEY]: stripUndefined(safeState) });
 }

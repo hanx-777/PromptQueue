@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">PromptQueue Split Q icon concept</title>
+  <desc id="desc">A bold Q-shaped prompt route splits into three colored destinations.</desc>
+  <rect x="4" y="4" width="120" height="120" rx="25" fill="#ffffff" stroke="#d8d8d3" stroke-width="2"/>
+
+  <circle cx="53" cy="55" r="29" fill="none" stroke="#171717" stroke-width="10"/>
+  <path d="M68 70l15 15" fill="none" stroke="#171717" stroke-width="10" stroke-linecap="round"/>
+  <g fill="none" stroke="#171717" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M82 85c9 0 10-19 17-19"/>
+    <path d="M82 85c8 0 10 1 17 1"/>
+    <path d="M82 85c9 0 10 21 17 21"/>
+  </g>
+
+  <circle cx="106" cy="66" r="7.5" fill="#10a37f"/>
+  <circle cx="106" cy="86" r="7.5" fill="#1a73e8"/>
+  <circle cx="106" cy="106" r="7.5" fill="#d97757"/>
+</svg>

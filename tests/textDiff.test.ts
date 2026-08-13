@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { diffTexts, getDiffStats } from "../src/utils/textDiff";
+import { diffTexts, filterDiffLinesWithContext, formatDiffSummary, getDiffStats } from "../src/utils/textDiff";
 
 describe("diffTexts", () => {
   it("handles empty input", () => {
@@ -62,16 +62,49 @@ describe("diffTexts", () => {
     assert.equal(getDiffStats(lines).changed, 1);
   });
 
-  it("can switch between whole-line and character precision for replacements", () => {
+  it("defaults to word precision while allowing line and character precision", () => {
+    const wordPrecision = diffTexts("This is a good test.", "This is a great test.");
+    assert.equal(wordPrecision[0]?.type, "replace");
+    assert.equal(wordPrecision[0]?.oldParts.find((part) => part.type === "delete")?.text, "good");
+    assert.equal(wordPrecision[0]?.newParts.find((part) => part.type === "insert")?.text, "great");
+
     const linePrecision = diffTexts("我们先从哪里开始呢?", "我们先从哪里弄开呢?", { precision: "line" });
     assert.equal(linePrecision[0]?.type, "replace");
     assert.deepEqual(linePrecision[0]?.oldParts, [{ type: "delete", text: "我们先从哪里开始呢?" }]);
     assert.deepEqual(linePrecision[0]?.newParts, [{ type: "insert", text: "我们先从哪里弄开呢?" }]);
 
+    const chineseWordPrecision = diffTexts("我们先从哪里开始呢?", "我们先从哪里弄开呢?", { precision: "word" });
+    assert.equal(chineseWordPrecision[0]?.oldParts.find((part) => part.type === "delete")?.text, "始");
+    assert.equal(chineseWordPrecision[0]?.newParts.find((part) => part.type === "insert")?.text, "弄");
+
     const characterPrecision = diffTexts("我们先从哪里开始呢?", "我们先从哪里弄开呢?", { precision: "character" });
     assert.equal(characterPrecision[0]?.type, "replace");
     assert.equal(characterPrecision[0]?.oldParts.find((part) => part.type === "delete")?.text, "始");
     assert.equal(characterPrecision[0]?.newParts.find((part) => part.type === "insert")?.text, "弄");
+  });
+
+  it("keeps one equal context line around change-only results", () => {
+    const lines = diffTexts("alpha\nbeta\ngamma\ndelta", "alpha\nbetter\ngamma\ndelta");
+    const visible = filterDiffLinesWithContext(lines, 1);
+
+    assert.deepEqual(visible.map((line) => line.oldText || line.newText), ["alpha", "beta", "gamma"]);
+  });
+
+  it("includes compare options in markdown summaries without changing stats", () => {
+    const lines = diffTexts("Alpha", "alpha", { ignoreCase: true });
+    const summary = formatDiffSummary(lines, "en", {
+      ignoreCase: true,
+      ignoreWhitespace: true,
+      precision: "word",
+      onlyChanges: true
+    });
+
+    assert.match(summary, /Options:/);
+    assert.match(summary, /Ignore case: yes/);
+    assert.match(summary, /Ignore whitespace: yes/);
+    assert.match(summary, /Precision: word/);
+    assert.match(summary, /Only changes: yes/);
+    assert.match(summary, /Changed: 0/);
   });
 
   it("keeps context around multi-line replacements", () => {

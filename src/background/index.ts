@@ -38,6 +38,15 @@ const PROVIDER_HOSTS = new Set([
   "claude.ai"
 ]);
 
+const PROVIDER_HOST_LABELS: Record<string, string> = {
+  "chatgpt.com": "ChatGPT",
+  "chat.openai.com": "ChatGPT",
+  "gemini.google.com": "Gemini",
+  "claude.ai": "Claude"
+};
+
+const PROVIDER_URL_PATTERNS = Array.from(PROVIDER_HOSTS, (host) => `https://${host}/*`);
+
 const VALID_CONTEXT_ACTION_TYPES: ContextMenuActionType[] = [
   "queue-selection",
   "summarize-selection",
@@ -273,4 +282,232 @@ createContextMenus();
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   void handleContextMenuClick(info, tab);
+});
+
+async function handleGetGoogleAuthToken(sendResponse: (response: { token?: string; error?: string }) => void): Promise<void> {
+  const granted = await chrome.permissions.contains({ permissions: ["identity"] });
+  if (!granted) {
+    sendResponse({ error: "The identity permission has not been granted. Enable Google Drive backup in Settings first." });
+    return;
+  }
+
+  chrome.identity.getAuthToken({ interactive: true }, (token) => {
+    if (chrome.runtime.lastError || !token) {
+      sendResponse({ error: chrome.runtime.lastError?.message || "Failed to get token" });
+    } else {
+      sendResponse({ token });
+    }
+  });
+}
+
+function handleShowNotification(request: { title?: unknown; message?: unknown }): void {
+  chrome.notifications.create({
+    type: "basic",
+    iconUrl: chrome.runtime.getURL("icons/icon128.png"),
+    title: typeof request.title === "string" && request.title ? request.title : "PromptQueue",
+    message: typeof request.message === "string" ? request.message : ""
+  });
+}
+
+interface FanoutSession {
+  initiatingTabId: number;
+  remaining: number;
+}
+
+type FanoutTarget = chrome.tabs.Tab & { id: number; label: string };
+
+const fanoutSessions = new Map<string, FanoutSession>();
+
+function createFanoutSessionId(): string {
+  return `fanout-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function labelForTabUrl(url: string | undefined): string {
+  if (!url) {
+    return "Unknown";
+  }
+  try {
+    return PROVIDER_HOST_LABELS[new URL(url).hostname] ?? "Unknown";
+  } catch {
+    return "Unknown";
+  }
+}
+
+function providerOrder(label: string): number {
+  return ["ChatGPT", "Gemini", "Claude"].indexOf(label);
+}
+
+function lastAccessedValue(tab: chrome.tabs.Tab): number {
+  return typeof tab.lastAccessed === "number" && Number.isFinite(tab.lastAccessed) ? tab.lastAccessed : 0;
+}
+
+function compareFanoutTabCandidate(
+  candidate: chrome.tabs.Tab & { id: number },
+  current: chrome.tabs.Tab & { id: number },
+  senderTabId: number
+): number {
+  const candidateIsSender = candidate.id === senderTabId;
+  const currentIsSender = current.id === senderTabId;
+  if (candidateIsSender !== currentIsSender) {
+    return candidateIsSender ? 1 : -1;
+  }
+
+  if (Boolean(candidate.active) !== Boolean(current.active)) {
+    return candidate.active ? 1 : -1;
+  }
+
+  const lastAccessedDelta = lastAccessedValue(candidate) - lastAccessedValue(current);
+  if (lastAccessedDelta !== 0) {
+    return lastAccessedDelta;
+  }
+
+  return candidate.id - current.id;
+}
+
+function resolveFanoutTargets(tabs: chrome.tabs.Tab[], senderTabId: number): FanoutTarget[] {
+  const byProvider = new Map<string, FanoutTarget>();
+
+  for (const tab of tabs) {
+    if (typeof tab.id !== "number") {
+      continue;
+    }
+
+    const label = labelForTabUrl(tab.url);
+    if (label === "Unknown") {
+      continue;
+    }
+
+    const target: FanoutTarget = { ...tab, id: tab.id, label };
+    const current = byProvider.get(label);
+    if (!current || compareFanoutTabCandidate(target, current, senderTabId) > 0) {
+      byProvider.set(label, target);
+    }
+  }
+
+  return Array.from(byProvider.values()).sort((left, right) => {
+    const leftOrder = providerOrder(left.label);
+    const rightOrder = providerOrder(right.label);
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder;
+    }
+    return left.label.localeCompare(right.label);
+  });
+}
+
+async function relayFanoutResult(
+  fanoutSessionId: string,
+  provider: string,
+  result: { text?: string; error?: string }
+): Promise<void> {
+  const session = fanoutSessions.get(fanoutSessionId);
+  if (!session) {
+    return;
+  }
+
+  try {
+    void chrome.tabs.sendMessage(session.initiatingTabId, {
+      type: "promptqueue.fanoutResult",
+      fanoutSessionId,
+      provider,
+      ...result
+    }).catch(() => undefined);
+  } catch {
+    // Originating tab may have navigated away or closed; nothing more to relay.
+  }
+
+  session.remaining -= 1;
+  if (session.remaining <= 0) {
+    fanoutSessions.delete(fanoutSessionId);
+  }
+}
+
+function dispatchFanoutRun(target: FanoutTarget, fanoutSessionId: string, prompt: string): void {
+  try {
+    void chrome.tabs.sendMessage(target.id, {
+      type: "promptqueue.fanoutRun",
+      fanoutSessionId,
+      prompt
+    }).catch(() => {
+      void relayFanoutResult(fanoutSessionId, target.label, { error: "This tab could not be reached." });
+    });
+  } catch {
+    void relayFanoutResult(fanoutSessionId, target.label, { error: "This tab could not be reached." });
+  }
+}
+
+async function activateFanoutTarget(target: FanoutTarget): Promise<void> {
+  try {
+    await chrome.tabs.update(target.id, { active: true });
+    await delay(350);
+  } catch {
+    // Some browsers may deny tab activation for a stale target; still try to dispatch below.
+  }
+}
+
+async function dispatchFanoutRuns(targets: FanoutTarget[], fanoutSessionId: string, prompt: string): Promise<void> {
+  for (const target of targets) {
+    await activateFanoutTarget(target);
+    dispatchFanoutRun(target, fanoutSessionId, prompt);
+  }
+}
+
+async function handleFanoutBroadcast(
+  request: { prompt?: unknown },
+  sender: chrome.runtime.MessageSender,
+  sendResponse: (response: { fanoutSessionId?: string; providers?: string[]; error?: string }) => void
+): Promise<void> {
+  const prompt = typeof request.prompt === "string" ? request.prompt.trim() : "";
+  if (!prompt || typeof sender.tab?.id !== "number") {
+    sendResponse({ error: "Missing prompt or sender tab." });
+    return;
+  }
+
+  const tabs = await chrome.tabs.query({ url: PROVIDER_URL_PATTERNS });
+  const targets = resolveFanoutTargets(tabs, sender.tab.id);
+  if (!targets.length) {
+    sendResponse({ error: "No supported AI page tabs are open." });
+    return;
+  }
+
+  const fanoutSessionId = createFanoutSessionId();
+  fanoutSessions.set(fanoutSessionId, { initiatingTabId: sender.tab.id, remaining: targets.length });
+
+  const providers = targets.map((target) => target.label);
+  sendResponse({ fanoutSessionId, providers });
+
+  void dispatchFanoutRuns(targets, fanoutSessionId, prompt);
+}
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === "GET_GOOGLE_AUTH_TOKEN") {
+    void handleGetGoogleAuthToken(sendResponse);
+    return true; // Keep the message channel open for the async response
+  }
+  if (request.type === "SHOW_NOTIFICATION") {
+    handleShowNotification(request);
+    return false;
+  }
+  if (request.type === "FANOUT_BROADCAST") {
+    void handleFanoutBroadcast(request, sender, sendResponse);
+    return true;
+  }
+  if (request.type === "FANOUT_RESULT") {
+    const fanoutSessionId = typeof request.fanoutSessionId === "string" ? request.fanoutSessionId : "";
+    if (!fanoutSessionId) {
+      sendResponse({ ok: false });
+      return false;
+    }
+
+    void relayFanoutResult(fanoutSessionId, typeof request.provider === "string" ? request.provider : "Unknown", {
+      text: typeof request.text === "string" ? request.text : undefined,
+      error: typeof request.error === "string" ? request.error : undefined
+    })
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
 });

@@ -37,6 +37,7 @@ export interface QueueWorkflow {
   id: string;
   name: string;
   messages: WorkflowMessage[];
+  tags?: string[];
   createdAt: number;
   updatedAt: number;
 }
@@ -55,9 +56,19 @@ export interface QueueSettings {
   providerModels: ProviderModelSettings;
   collapsed: boolean;
   panelWidth: number;
+  /** Opt-in: capture the visible text of each reply after a task completes, stored locally on the task. Default false. */
+  captureReplies: boolean;
+  notifyOnQueueComplete: boolean;
+  rateLimitWarningEnabled: boolean;
 }
 
 export type QueueRunLogStatus = "started" | "done" | "failed" | "retrying" | "skipped";
+export type QueueFailureStage =
+  | "composer-missing"
+  | "send-button-missing"
+  | "model-select-warning"
+  | "pre-send-failed"
+  | "reply-timeout";
 
 export interface QueueRunLogEntry {
   id: string;
@@ -69,6 +80,16 @@ export interface QueueRunLogEntry {
   endedAt?: number;
   attemptCount: number;
   error?: string;
+  failureStage?: QueueFailureStage;
+}
+
+export interface ProviderHealthStatus {
+  provider: string;
+  composerFound: boolean;
+  sendButtonFound: boolean;
+  stopButtonFound: boolean;
+  pageBusy: boolean;
+  checkedAt: number;
 }
 
 export type ContextMenuActionType =
@@ -96,4 +117,8 @@ export interface QueueState {
   lastError?: string;
   reloadWarning?: string;
   runLog?: QueueRunLogEntry[];
+  /** Monotonic write counter used to detect concurrent writes from other tabs. Managed by storage.ts; callers should not set it directly. */
+  revision?: number;
+  /** Non-blocking soft warning (e.g. sending too fast); does not pause the queue. */
+  rateLimitWarning?: string;
 }

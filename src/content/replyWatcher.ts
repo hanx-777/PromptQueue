@@ -5,6 +5,20 @@ interface ReplyWatcherOptions {
   maxWaitMs: number;
   requireStart?: boolean;
   startTimeoutMs?: number;
+  baselineSnapshot?: ProviderGenerationSnapshot | null;
+}
+
+interface ObservedReplySnapshot {
+  assistantSignature: string;
+  assistantTextLength: number;
+  assistantMediaCount: number;
+  assistantMessageCount: number;
+}
+
+interface ReplySnapshotActivity {
+  changedSinceLastPoll: boolean;
+  grewFromBaseline: boolean;
+  observedSnapshot: ObservedReplySnapshot;
 }
 
 function getSnapshot(provider: ProviderAdapter): ProviderGenerationSnapshot | null {
@@ -15,11 +29,53 @@ function getSnapshot(provider: ProviderAdapter): ProviderGenerationSnapshot | nu
   }
 }
 
+function getObservedSnapshot(snapshot: ProviderGenerationSnapshot | null): ObservedReplySnapshot {
+  return {
+    assistantSignature: snapshot?.assistantSignature ?? "",
+    assistantTextLength: snapshot?.assistantTextLength ?? 0,
+    assistantMediaCount: snapshot?.assistantMediaCount ?? 0,
+    assistantMessageCount: snapshot?.assistantMessageCount ?? 0
+  };
+}
+
+export function evaluateReplySnapshotActivity(
+  baseline: ProviderGenerationSnapshot | null,
+  lastObserved: ObservedReplySnapshot,
+  snapshot: ProviderGenerationSnapshot | null
+): ReplySnapshotActivity {
+  const observedSnapshot = getObservedSnapshot(snapshot);
+  const changedSinceLastPoll = Boolean(
+    snapshot &&
+    (
+      observedSnapshot.assistantSignature !== lastObserved.assistantSignature ||
+      observedSnapshot.assistantTextLength !== lastObserved.assistantTextLength ||
+      observedSnapshot.assistantMediaCount !== lastObserved.assistantMediaCount ||
+      observedSnapshot.assistantMessageCount !== lastObserved.assistantMessageCount
+    )
+  );
+  const grewFromBaseline = Boolean(
+    baseline &&
+    snapshot &&
+    (
+      snapshot.assistantTextLength > baseline.assistantTextLength ||
+      snapshot.assistantMediaCount > baseline.assistantMediaCount ||
+      snapshot.assistantMessageCount > baseline.assistantMessageCount
+    )
+  );
+
+  return {
+    changedSinceLastPoll,
+    grewFromBaseline,
+    observedSnapshot
+  };
+}
+
 export class ReplyWatcher {
   private readonly stableDelayMs: number;
   private readonly maxWaitMs: number;
   private readonly requireStart: boolean;
   private readonly startTimeoutMs: number;
+  private readonly baselineSnapshot: ProviderGenerationSnapshot | null | undefined;
   private observer: MutationObserver | null = null;
   private intervalId: number | null = null;
   private timeoutId: number | null = null;
@@ -31,6 +87,7 @@ export class ReplyWatcher {
     this.maxWaitMs = Math.max(5000, options.maxWaitMs);
     this.requireStart = Boolean(options.requireStart);
     this.startTimeoutMs = Math.max(1500, Math.min(options.startTimeoutMs ?? 20000, this.maxWaitMs - 500));
+    this.baselineSnapshot = options.baselineSnapshot;
   }
 
   waitUntilComplete(): Promise<void> {
@@ -41,8 +98,8 @@ export class ReplyWatcher {
     const provider = getCurrentProvider();
     const target = provider.findMainArea();
     const startedAt = Date.now();
-    const initialSnapshot = getSnapshot(provider);
-    let lastSignature = initialSnapshot?.assistantSignature ?? "";
+    const initialSnapshot = this.baselineSnapshot ?? getSnapshot(provider);
+    let lastObservedSnapshot = getObservedSnapshot(initialSnapshot);
     let sawReplyActivity = !this.requireStart;
 
     return new Promise((resolve, reject) => {
@@ -58,7 +115,9 @@ export class ReplyWatcher {
 
       this.observer = new MutationObserver((mutations) => {
         if (mutations.some((mutation) => mutation.type === "childList" || mutation.type === "characterData")) {
-          this.lastMutationAt = Date.now();
+          if (!sawReplyActivity) {
+            this.lastMutationAt = Date.now();
+          }
         }
       });
 
@@ -76,24 +135,18 @@ export class ReplyWatcher {
         const snapshot = getSnapshot(provider);
         const stopButtonExists = Boolean(provider.findStopButton());
         const structuredBusy = (snapshot?.structuredBusyIndicators ?? 0) > 0;
-        const signatureChanged = Boolean(snapshot?.assistantSignature && snapshot.assistantSignature !== lastSignature);
-        const replyGrew = Boolean(
-          initialSnapshot &&
-          snapshot &&
-          (
-            snapshot.assistantTextLength > initialSnapshot.assistantTextLength ||
-            snapshot.assistantMediaCount > initialSnapshot.assistantMediaCount
-          )
-        );
-        const replyIsActive = stopButtonExists || structuredBusy || signatureChanged || replyGrew;
+        const snapshotActivity = evaluateReplySnapshotActivity(initialSnapshot, lastObservedSnapshot, snapshot);
+        const replyIsActive = stopButtonExists || structuredBusy || snapshotActivity.changedSinceLastPoll || snapshotActivity.grewFromBaseline;
 
-        if (signatureChanged && snapshot) {
-          lastSignature = snapshot.assistantSignature;
+        if (snapshotActivity.changedSinceLastPoll) {
+          lastObservedSnapshot = snapshotActivity.observedSnapshot;
           this.lastMutationAt = Date.now();
         }
-        if (replyIsActive) {
+        if (stopButtonExists || structuredBusy) {
           sawReplyActivity = true;
           this.lastMutationAt = Date.now();
+        } else if (replyIsActive) {
+          sawReplyActivity = true;
         }
 
         if (!sawReplyActivity) {

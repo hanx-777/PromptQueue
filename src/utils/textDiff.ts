@@ -25,7 +25,8 @@ export interface DiffStats {
 export interface DiffOptions {
   ignoreWhitespace?: boolean;
   ignoreCase?: boolean;
-  precision?: "line" | "character";
+  precision?: "line" | "word" | "character";
+  onlyChanges?: boolean;
 }
 
 export type DiffSummaryLanguage = "zh" | "en";
@@ -418,6 +419,25 @@ export function diffTexts(oldText: string, newText: string, options?: DiffOption
   return coalesceLineOperations(diffLines(splitLines(oldText), splitLines(newText), options), options);
 }
 
+export function filterDiffLinesWithContext(lines: DiffLine[], contextSize = 1): DiffLine[] {
+  const safeContextSize = Math.max(0, Math.floor(contextSize));
+  const visibleIndexes = new Set<number>();
+
+  lines.forEach((line, index) => {
+    if (line.type === "equal") {
+      return;
+    }
+
+    const start = Math.max(0, index - safeContextSize);
+    const end = Math.min(lines.length - 1, index + safeContextSize);
+    for (let visibleIndex = start; visibleIndex <= end; visibleIndex += 1) {
+      visibleIndexes.add(visibleIndex);
+    }
+  });
+
+  return lines.filter((_, index) => visibleIndexes.has(index));
+}
+
 export function getDiffStats(lines: DiffLine[]): DiffStats {
   return lines.reduce<DiffStats>(
     (stats, line) => {
@@ -441,7 +461,43 @@ function getLineLabel(lineNumber: number | undefined, language: DiffSummaryLangu
   return language === "zh" ? `第 ${lineNumber} 行` : `Line ${lineNumber}`;
 }
 
-export function formatDiffSummary(lines: DiffLine[], language: DiffSummaryLanguage = "en"): string {
+function yesNo(value: boolean | undefined, language: DiffSummaryLanguage): string {
+  if (language === "zh") {
+    return value ? "是" : "否";
+  }
+  return value ? "yes" : "no";
+}
+
+function formatOptions(options: DiffOptions | undefined, language: DiffSummaryLanguage): string[] {
+  if (!options) {
+    return [];
+  }
+
+  const precision = options.precision ?? "word";
+  if (language === "zh") {
+    return [
+      "选项：",
+      `- 忽略空白：${yesNo(options.ignoreWhitespace, language)}`,
+      `- 忽略大小写：${yesNo(options.ignoreCase, language)}`,
+      `- 精度：${precision}`,
+      `- 只看修改处：${yesNo(options.onlyChanges, language)}`
+    ];
+  }
+
+  return [
+    "Options:",
+    `- Ignore whitespace: ${yesNo(options.ignoreWhitespace, language)}`,
+    `- Ignore case: ${yesNo(options.ignoreCase, language)}`,
+    `- Precision: ${precision}`,
+    `- Only changes: ${yesNo(options.onlyChanges, language)}`
+  ];
+}
+
+export function formatDiffSummary(
+  lines: DiffLine[],
+  language: DiffSummaryLanguage = "en",
+  options?: DiffOptions
+): string {
   const stats = getDiffStats(lines);
   const isZh = language === "zh";
   const output = [
@@ -452,6 +508,10 @@ export function formatDiffSummary(lines: DiffLine[], language: DiffSummaryLangua
     `${isZh ? "修改" : "Changed"}: ${stats.changed}`,
     ""
   ];
+  const optionLines = formatOptions(options, language);
+  if (optionLines.length) {
+    output.push(...optionLines, "");
+  }
 
   if (stats.added === 0 && stats.deleted === 0 && stats.changed === 0) {
     output.push(isZh ? "没有变化。" : "No changes.");

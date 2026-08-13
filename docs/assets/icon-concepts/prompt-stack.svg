@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">PromptQueue Prompt Stack icon concept</title>
+  <desc id="desc">Stacked prompt cards distribute one workflow to three colored destinations.</desc>
+  <rect x="4" y="4" width="120" height="120" rx="25" fill="#171717" stroke="#3a3a3a" stroke-width="2"/>
+
+  <rect x="25" y="24" width="57" height="49" rx="9" fill="#171717" stroke="#f7f7f5" stroke-width="7"/>
+  <rect x="34" y="36" width="61" height="53" rx="9" fill="#f7f7f5"/>
+  <g fill="none" stroke="#171717" stroke-width="6" stroke-linecap="round">
+    <path d="M47 52h32"/>
+    <path d="M47 66h25"/>
+  </g>
+  <g fill="none" stroke="#f7f7f5" stroke-width="6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M93 55c6 0 6-8 10-8"/>
+    <path d="M93 63h10"/>
+    <path d="M93 71c6 0 6 8 10 8"/>
+  </g>
+
+  <circle cx="109" cy="47" r="8" fill="#10a37f"/>
+  <circle cx="109" cy="63" r="8" fill="#1a73e8"/>
+  <circle cx="109" cy="79" r="8" fill="#d97757"/>
+</svg>
