@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PromptQueue Settings - Adaptive Console</title>
+  <style>
+    /* Visual system: existing provider-green on warm neutrals; 11/12/13/15px
+       type scale; 4/8/12/18px spacing; numbered section headers as the only
+       recurring visual signal. No gradients or decorative AI imagery. */
+    :root {
+      color-scheme: light;
+      --canvas: #e9e9e5;
+      --ink: #202123;
+      --muted: #6f6f6b;
+      --line: #deded9;
+      --line-strong: #8f8f7f;
+      --paper: #f7f7f5;
+      --surface: #ffffff;
+      --surface-soft: #f0f0ee;
+      --accent: #10a37f;
+      --accent-text: #047857;
+      --accent-line: rgba(16, 163, 127, .42);
+      --warning: #6d4b00;
+      --warning-bg: #fff7df;
+      --warning-line: #e5c76d;
+      --mono: ui-monospace, "SFMono-Regular", "SF Mono", Consolas, monospace;
+      --ui: "OpenAI Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-width: 320px;
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: var(--ui);
+    }
+
+    button, input { font: inherit; }
+
+    button:focus-visible, input:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .artifact-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 20px;
+      border-bottom: 1px solid #d1d1cc;
+      background: #f7f7f5;
+    }
+
+    .artifact-title { display: grid; gap: 2px; }
+    .artifact-title strong { font-size: 13px; letter-spacing: 0; }
+    .artifact-title span { color: var(--muted); font-size: 12px; }
+
+    .width-controls { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid #d1d1cc; border-radius: 8px; background: #fff; }
+    .width-controls button {
+      min-height: 32px;
+      padding: 4px 10px;
+      border: 1px solid transparent;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .width-controls button[aria-pressed="true"] { border-color: var(--accent-line); background: #fff; color: var(--accent-text); }
+
+    .stage {
+      display: grid;
+      min-height: calc(100vh - 70px);
+      place-items: start center;
+      padding: 28px 20px 56px;
+      overflow: auto;
+    }
+
+    .panel-frame {
+      container-type: inline-size;
+      width: 380px;
+      max-width: 100%;
+      border: 1px solid #c8c8c2;
+      border-radius: 8px;
+      background: var(--paper);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, .12);
+      transition: width 180ms ease;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 50px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+      background: var(--surface);
+    }
+
+    .panel-header strong { font-size: 15px; }
+    .panel-header span { color: var(--accent-text); font-size: 11px; font-weight: 800; }
+    .panel-header button {
+      width: 30px;
+      height: 30px;
+      padding: 0;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      background: var(--surface);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    .panel-nav { display: flex; gap: 4px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface); }
+    .panel-nav span { flex: 1; padding: 8px; border-radius: 6px; color: var(--muted); font-size: 12px; font-weight: 700; text-align: center; }
+    .panel-nav span:last-child { border: 1px solid var(--accent-line); background: rgba(16, 163, 127, .12); color: var(--accent-text); }
+
+    .settings-panel { display: grid; gap: 18px; padding: 16px 12px 22px; }
+
+    .settings-header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+    .settings-header-copy { display: grid; gap: 4px; }
+    .settings-header h1 { margin: 0; font-size: 15px; letter-spacing: 0; line-height: 1.2; }
+    .settings-header p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.35; text-wrap: pretty; }
+    .settings-icon-button { width: 30px; height: 30px; padding: 0; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); font-size: 18px; cursor: pointer; }
+
+    .overview { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+    .overview-item { display: grid; gap: 2px; min-width: 0; padding: 10px; }
+    .overview-item + .overview-item { border-left: 1px solid var(--line); }
+    .overview-item span { color: var(--muted); font-size: 11px; font-weight: 700; line-height: 1.35; }
+    .overview-item strong { color: var(--accent-text); font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+
+    .settings-section { display: grid; gap: 12px; }
+    .section-heading { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; align-items: start; }
+    .section-index { padding-top: 1px; color: var(--accent-text); font-family: var(--mono); font-size: 11px; font-weight: 800; line-height: 1.35; }
+    .section-heading h2 { margin: 0 0 2px; font-size: 13px; line-height: 1.2; }
+    .section-heading p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
+
+    .control-list { border-top: 1px solid var(--line); }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink); font-size: 12px; cursor: pointer; }
+    .switch { position: relative; flex: 0 0 42px; width: 42px; height: 24px; }
+    .switch input { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+    .switch-track { display: flex; align-items: center; width: 100%; height: 100%; padding: 2px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); transition: .15s ease; }
+    .switch-track::after { width: 18px; height: 18px; border-radius: 50%; background: #71716b; content: ""; transition: .15s ease; }
+    .switch input:checked + .switch-track { border-color: var(--accent-line); background: var(--accent); }
+    .switch input:checked + .switch-track::after { transform: translateX(18px); background: #fff; }
+
+    .fields { display: grid; gap: 12px; }
+    .field { display: grid; gap: 4px; color: var(--muted); font-size: 12px; }
+    .field input[type="text"], .field input[type="number"] { height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); }
+    .code-input { font-family: var(--mono); font-size: 12px; }
+
+    fieldset { display: grid; gap: 4px; min-width: 0; margin: 0; padding: 0; border: 0; }
+    legend { padding: 0; color: var(--muted); font-size: 12px; }
+    .choice-group { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+    .choice { position: relative; display: grid; min-height: 40px; cursor: pointer; }
+    .choice input { position: absolute; opacity: 0; pointer-events: none; }
+    .choice span { display: grid; place-items: center; min-width: 0; padding: 4px 6px; border: 1px solid transparent; border-radius: 5px; color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; }
+    .choice input:checked + span { border-color: var(--accent-line); background: var(--surface); color: var(--accent-text); }
+
+    .advanced { display: grid; gap: 18px; }
+    .advanced .settings-section + .settings-section { padding-top: 18px; border-top: 1px solid var(--line); }
+    .field-grid { display: grid; gap: 12px; }
+    .dependent { padding-left: 12px; border-left: 1px solid var(--line-strong); }
+    .model-list { border-top: 1px solid var(--line); }
+    .model-row { display: grid; gap: 8px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    select { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); }
+    .sync-module { display: grid; gap: 10px; padding: 10px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--surface-soft); }
+    .sync-module strong { font-size: 12px; }
+    .experimental { display: inline-block; margin-left: 6px; padding: 1px 6px; border: 1px solid var(--warning-line); border-radius: 999px; background: var(--warning-bg); color: var(--warning); font-size: 10px; vertical-align: middle; }
+    .sync-module p { margin: 0; color: var(--muted); font-size: 11px; line-height: 1.35; }
+    .sync-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .sync-actions button { min-height: 40px; padding: 6px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--muted); cursor: not-allowed; font-size: 11px; font-weight: 700; }
+
+    .reset-row { display: flex; justify-content: flex-end; padding-top: 12px; border-top: 1px solid var(--line); }
+    .reset-row button { min-height: 36px; padding: 6px 10px; border: 1px solid var(--line-strong); border-radius: 6px; background: var(--surface); color: var(--ink); cursor: pointer; font-size: 12px; font-weight: 700; }
+
+    .support { display: grid; grid-template-columns: 24px minmax(0, 1fr); gap: 8px; align-items: start; padding-top: 18px; border-top: 1px solid var(--line); }
+    .support-copy { display: grid; gap: 10px; }
+    .support-copy strong { display: block; color: var(--ink); font-size: 13px; }
+    .support-copy p { margin: 3px 0 0; color: var(--muted); font-size: 12px; line-height: 1.35; }
+    .support-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+    .support-actions a { display: grid; min-height: 40px; place-items: center; border: 1px solid var(--line); border-radius: 6px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; text-decoration: none; }
+    .support-actions a:last-child { background: var(--surface); color: var(--ink); }
+    .support img { grid-column: 1 / -1; grid-row: 2; width: min(100%, 220px); aspect-ratio: 1 / 1.35; justify-self: center; border: 1px solid var(--line); border-radius: 8px; object-fit: cover; object-position: center top; background: #fff; }
+
+    .settings-page[hidden] { display: none; }
+    .settings-pagination { min-width: 0; }
+    .pagination-pages { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px; min-width: 0; padding: 2px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-soft); }
+    .page-button { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px; align-items: center; min-width: 0; min-height: 36px; padding: 4px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; font-weight: 700; text-align: left; }
+    .page-button > span { color: var(--muted); font-family: var(--mono); font-weight: 800; }
+    .page-button strong { min-width: 0; overflow-wrap: anywhere; }
+    .page-button[aria-current="page"] { border-color: var(--accent-line); background: var(--surface); color: var(--accent-text); }
+    .page-button[aria-current="page"] > span { color: var(--accent-text); }
+
+    .panel-frame[data-theme="dark"] {
+      --ink: #ececec;
+      --muted: #b4b4b4;
+      --line: #343434;
+      --line-strong: #656565;
+      --paper: #171717;
+      --surface: #212121;
+      --surface-soft: #2a2a2a;
+      --accent-text: #7ee0c1;
+      --canvas: #0c0c0c;
+    }
+    .panel-frame[data-theme="dark"] .support-actions a { background: #ececec; color: #171717; }
+    .panel-frame[data-theme="dark"] .support-actions a:last-child { background: #242424; color: #ececec; }
+
+    @container (min-width: 620px) {
+      .fields, .field-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .support { grid-template-columns: 24px minmax(0, 1fr) minmax(180px, 220px); }
+      .support img { grid-column: 3; grid-row: 1; width: 100%; }
+    }
+
+    @container (max-width: 340px) {
+      .stage { padding-right: 10px; padding-left: 10px; }
+      .overview { grid-template-columns: 1fr; }
+      .overview-item + .overview-item { border-top: 1px solid var(--line); border-left: 0; }
+      .support-actions { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header class="artifact-toolbar">
+    <div class="artifact-title">
+      <strong>PromptQueue Settings - Adaptive Console</strong>
+      <span>高保真设置页参考：自动切换容器宽度、主题和高级设置状态。</span>
+    </div>
+    <div class="width-controls" aria-label="预览宽度">
+      <button type="button" data-width="300" aria-pressed="false">300px</button>
+      <button type="button" data-width="380" aria-pressed="true">380px</button>
+      <button type="button" data-width="720" aria-pressed="false">720px</button>
+    </div>
+  </header>
+
+  <main class="stage">
+    <article class="panel-frame" id="panel-frame" data-theme="light">
+      <header class="panel-header">
+        <strong>PromptQueue</strong>
+        <span>ChatGPT</span>
+        <button type="button" aria-label="关闭">×</button>
+      </header>
+      <nav class="panel-nav" aria-label="面板导航">
+        <span>运行</span><span>工作流</span><span>设置</span>
+      </nav>
+
+      <section class="settings-panel" aria-label="设置">
+        <header class="settings-header">
+          <div class="settings-header-copy">
+            <h1>设置</h1>
+            <p>管理 PromptQueue 的默认行为与本地数据。</p>
+          </div>
+          <button class="settings-icon-button" type="button" aria-label="关闭设置">×</button>
+        </header>
+
+        <nav class="settings-pagination" aria-label="设置分页">
+          <div class="pagination-pages">
+            <button class="page-button" type="button" data-page-target="general" aria-current="page"><span>1</span><strong>常规</strong></button>
+            <button class="page-button" type="button" data-page-target="advanced"><span>2</span><strong>高级</strong></button>
+            <button class="page-button" type="button" data-page-target="support"><span>3</span><strong>支持</strong></button>
+          </div>
+        </nav>
+
+        <div class="overview" aria-label="当前配置概览">
+          <div class="overview-item"><span>自动化</span><strong id="automation-summary">2/3 已启用</strong></div>
+          <div class="overview-item"><span>模型策略</span><strong>3/3 自动</strong></div>
+          <div class="overview-item"><span>数据采集</span><strong id="capture-summary">本地采集已关闭</strong></div>
+        </div>
+
+        <div class="settings-page" data-page="general">
+        <section class="settings-section" aria-labelledby="general-heading">
+          <div class="section-heading"><span class="section-index">01</span><div><h2 id="general-heading">常规</h2><p>常用行为与界面偏好。</p></div></div>
+          <div class="control-list">
+            <label class="toggle-row">自动发送下条 <span class="switch"><input class="automation-input" type="checkbox" checked><span class="switch-track"></span></span></label>
+            <label class="toggle-row">Steer 自动带上上下文 <span class="switch"><input class="automation-input" type="checkbox" checked><span class="switch-track"></span></span></label>
+            <label class="toggle-row">队列跑完时系统通知 <span class="switch"><input class="automation-input" type="checkbox"><span class="switch-track"></span></span></label>
+          </div>
+          <div class="fields">
+            <label class="field">批量分隔符<input class="code-input" type="text" value="---" aria-label="批量分隔符"></label>
+            <fieldset><legend>主题</legend><div class="choice-group" role="radiogroup" aria-label="主题"><label class="choice"><input type="radio" name="theme" value="page"><span>跟随网页</span></label><label class="choice"><input type="radio" name="theme" value="light" checked><span>浅色</span></label><label class="choice"><input type="radio" name="theme" value="dark"><span>深色</span></label></div></fieldset>
+            <fieldset><legend>语言</legend><div class="choice-group" role="radiogroup" aria-label="语言"><label class="choice"><input type="radio" name="language" checked><span>中文</span></label><label class="choice"><input type="radio" name="language"><span>English</span></label></div></fieldset>
+          </div>
+        </section>
+        <div class="reset-row"><button type="button">重置面板宽度</button></div>
+        </div>
+
+        <div class="settings-page" data-page="advanced" hidden>
+        <div class="advanced">
+          <section class="settings-section"><div class="section-heading"><span class="section-index">02</span><div><h2>执行与重试</h2><p>默认参数适合大多数网页；只在必要时调整。</p></div></div><div class="field-grid"><label class="field">稳定等待 (ms)<input type="number" value="1500"></label><label class="field">最长等待 (ms)<input type="number" value="120000"></label></div><label class="toggle-row">发送前失败自动重试 <span class="switch"><input type="checkbox"><span class="switch-track"></span></span></label><div class="field-grid dependent"><label class="field">最大自动重试次数<input type="number" value="2" disabled></label><label class="field">重试间隔 (ms)<input type="number" value="2000" disabled></label></div></section>
+          <section class="settings-section"><div class="section-heading"><span class="section-index">03</span><div><h2>模型偏好</h2><p>发送前尝试切换到选择的可见模型。</p></div></div><div class="model-list"><label class="model-row">ChatGPT<select><option>自动最高档</option><option>GPT-5</option></select></label><label class="model-row">Gemini<select><option>自动最高档</option><option>Gemini 2.5 Pro</option></select></label><label class="model-row">Claude<select><option>自动最高档</option><option>Claude Opus</option></select></label></div></section>
+          <section class="settings-section"><div class="section-heading"><span class="section-index">04</span><div><h2>数据与同步</h2></div></div><label class="toggle-row">采集回复文本 <span class="switch"><input id="capture-input" type="checkbox"><span class="switch-track"></span></span></label><div class="sync-module"><strong>Google Drive 云备份 <span class="experimental">实验性</span></strong><p>仅备份设置和工作流；当前 OAuth 未配置。</p><div class="sync-actions"><button type="button" disabled>备份到云端</button><button type="button" disabled>从云端恢复</button></div></div></section>
+        </div>
+        </div>
+
+        <div class="settings-page" data-page="support" hidden>
+        <section class="support" aria-label="支持">
+          <span class="section-index">05</span>
+          <div class="support-copy"><div><strong>支持作者</strong><p>如果这个扩展为你节省了时间，可以点 Star、Ko-fi 或扫码支持。</p></div><div class="support-actions"><a href="https://github.com/hanx-777/PromptQueue">GitHub Star</a><a href="https://ko-fi.com/hanx1221">Ko-fi</a></div></div>
+          <img src="/assets/donate-wechat.jpg" alt="微信支付收款码">
+        </section>
+        </div>
+      </section>
+    </article>
+  </main>
+
+  <script>
+    const frame = document.querySelector('#panel-frame');
+    const widthButtons = document.querySelectorAll('[data-width]');
+    const automationInputs = document.querySelectorAll('.automation-input');
+    const automationSummary = document.querySelector('#automation-summary');
+    const captureInput = document.querySelector('#capture-input');
+    const captureSummary = document.querySelector('#capture-summary');
+    const settingsPages = document.querySelectorAll('.settings-page');
+    const pageButtons = document.querySelectorAll('[data-page-target]');
+    let activePage = 'general';
+
+    function showPage(page) {
+      activePage = page;
+      settingsPages.forEach((section) => { section.hidden = section.dataset.page !== page; });
+      pageButtons.forEach((button) => {
+        button.setAttribute('aria-current', String(button.dataset.pageTarget === page ? 'page' : false));
+        if (button.dataset.pageTarget !== page) button.removeAttribute('aria-current');
+      });
+    }
+
+    widthButtons.forEach((button) => {
+      button.addEventListener('click', () => {
+        frame.style.width = `${button.dataset.width}px`;
+        widthButtons.forEach((item) => item.setAttribute('aria-pressed', String(item === button)));
+      });
+    });
+
+    document.querySelectorAll('input[name="theme"]').forEach((input) => {
+      input.addEventListener('change', () => {
+        frame.dataset.theme = input.value === 'dark' ? 'dark' : 'light';
+      });
+    });
+
+    automationInputs.forEach((input) => input.addEventListener('change', () => {
+      const enabled = [...automationInputs].filter((item) => item.checked).length;
+      automationSummary.textContent = `${enabled}/3 已启用`;
+    }));
+
+    captureInput.addEventListener('change', () => {
+      captureSummary.textContent = captureInput.checked ? '本地采集已开启' : '本地采集已关闭';
+    });
+
+    pageButtons.forEach((button) => button.addEventListener('click', () => showPage(button.dataset.pageTarget)));
+    showPage(activePage);
+  </script>
+</body>
+</html>

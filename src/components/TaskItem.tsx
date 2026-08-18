@@ -69,9 +69,10 @@ export function TaskItem({
         <button
           className="drag-handle icon-button"
           type="button"
-          title={`${texts.dragToReorder} (↑ / ↓)`}
+          title={texts.dragToReorder}
           disabled={!canReorder}
-          aria-label={texts.dragTask}
+          aria-label={texts.dragToReorder}
+          aria-keyshortcuts="ArrowUp ArrowDown"
           onKeyDown={(event) => {
             if (event.key === "ArrowUp" && index > 0) {
               event.preventDefault();

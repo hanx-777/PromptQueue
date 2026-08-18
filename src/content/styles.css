@@ -252,8 +252,10 @@ textarea::placeholder {
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.08);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.12);
   --shadow-lg: -12px 0 32px rgba(0, 0, 0, 0.12);
+  --shadow-lg-left: 12px 0 32px rgba(0, 0, 0, 0.12);
   --shadow-float: 0 18px 44px rgba(0, 0, 0, 0.18);
   --shadow-rail: -8px 0 24px rgba(0, 0, 0, 0.16);
+  --shadow-rail-left: 8px 0 24px rgba(0, 0, 0, 0.16);
   --shadow-up: 0 -12px 24px rgba(0, 0, 0, 0.06);
   --diff-insert-bg: #ecfdf3;
   --diff-insert-bg-strong: #bbf7d0;
@@ -322,8 +324,10 @@ textarea::placeholder {
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.55);
   --shadow-lg: -12px 0 32px rgba(0, 0, 0, 0.55);
+  --shadow-lg-left: 12px 0 32px rgba(0, 0, 0, 0.55);
   --shadow-float: 0 18px 44px rgba(0, 0, 0, 0.62);
   --shadow-rail: -8px 0 24px rgba(0, 0, 0, 0.55);
+  --shadow-rail-left: 8px 0 24px rgba(0, 0, 0, 0.55);
   --shadow-up: 0 -12px 24px rgba(0, 0, 0, 0.42);
   /* The diff palette used to live only in .provider-chatgpt.theme-dark, so
      Gemini and Claude fell back to the light-theme diff colors and rendered a
@@ -569,11 +573,37 @@ textarea::placeholder {
 }
 
 .queue-shell.collapsed {
-  min-width: 44px;
+  min-width: 36px;
+  height: 48px;
+  overflow: visible;
   border-left: 0;
   background: transparent;
   box-shadow: none;
-  justify-content: center;
+  transform: translateY(-50%);
+}
+
+.queue-shell.dock-right,
+.queue-shell.dock-left {
+  position: fixed;
+  top: 0;
+}
+
+.queue-shell.dock-right {
+  right: 0;
+  left: auto;
+}
+
+.queue-shell.dock-left {
+  right: auto;
+  left: 0;
+  border-right: 1px solid var(--border);
+  border-left: 0;
+  box-shadow: var(--shadow-lg-left);
+}
+
+.queue-shell.collapsed.dock-left,
+.queue-shell.collapsed.dock-right {
+  box-shadow: none;
 }
 
 .queue-shell.native-queue-dock {
@@ -705,9 +735,10 @@ textarea::placeholder {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: var(--space-sm);
-  width: 44px;
-  height: 92px;
+  gap: var(--space-2xs);
+  width: 36px;
+  height: 48px;
+  padding: var(--space-xs);
   border-radius: var(--radius-lg) 0 0 var(--radius-lg);
   border: 1px solid var(--border-control);
   border-right: 0;
@@ -716,11 +747,26 @@ textarea::placeholder {
   font-size: var(--text-xl);
   font-weight: 800;
   box-shadow: var(--shadow-rail);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
 .collapse-tab span {
   font-size: var(--text-xs);
   line-height: var(--lh-none);
+}
+
+.collapse-tab:active:not(:disabled) {
+  transform: none;
+  cursor: grabbing;
+}
+
+.queue-shell.dock-left .collapse-tab {
+  border-right: 1px solid var(--border-control);
+  border-left: 0;
+  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
+  box-shadow: var(--shadow-rail-left);
 }
 
 .resize-handle {
@@ -735,6 +781,16 @@ textarea::placeholder {
 
 .resize-handle:hover {
   background: var(--focus-soft);
+}
+
+.queue-shell.dock-left .resize-handle {
+  right: 0;
+  left: auto;
+}
+
+.queue-shell.dock-left .panel-header {
+  padding-right: var(--space-2xl);
+  padding-left: var(--space-lg);
 }
 
 .panel-header {
@@ -778,23 +834,6 @@ textarea::placeholder {
   color: var(--muted);
   font-size: var(--text-sm);
   line-height: var(--lh-snug);
-}
-
-.provider-tag {
-  flex: 0 1 auto;
-  min-width: 0;
-  max-width: 86px;
-  overflow: hidden;
-  padding: var(--space-2xs) var(--space-sm);
-  border: 1px solid var(--provider-accent-border);
-  border-radius: var(--radius-pill);
-  background: var(--provider-accent-soft);
-  color: var(--provider-accent-text);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  line-height: var(--lh-snug);
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .header-actions,
@@ -862,25 +901,29 @@ textarea::placeholder {
   background: var(--button-secondary-hover);
 }
 
-.status-bar {
+.provider-health-strip {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: var(--space-xs);
   padding: var(--space-sm) var(--space-lg);
   border-bottom: 1px solid var(--border);
-  color: var(--muted);
-  font-size: var(--text-xs);
   background: var(--surface);
 }
 
-.status-bar span {
+.provider-health-strip .provider-health-provider {
+  display: inline-flex;
+  align-items: center;
   min-height: 22px;
   padding: var(--space-2xs) var(--space-md);
-  border: 1px solid var(--provider-accent-border);
+  border: 1px solid var(--border);
   border-radius: var(--radius-pill);
-  background: var(--provider-accent-soft);
-  white-space: nowrap;
+  background: var(--surface-soft);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: 800;
   line-height: var(--lh-normal);
+  white-space: nowrap;
 }
 
 .message-banner {
@@ -951,20 +994,132 @@ textarea::placeholder {
   min-height: 100%;
 }
 
-/* The Run page stacks 7 equally-weighted regions separated only by a 12px gap,
-   which gives a scan no anchors. A light card treatment establishes region
-   boundaries without adding chrome; the composer/controls in the sticky footer
-   keep their flush treatment so the footer still reads as one surface. */
-.run-section > .provider-health-panel,
-.run-section > .controls,
-.run-section > .queue-messages-preview,
-.run-section > .queue-results-panel,
-.run-section > .run-log-panel,
+/* The Run page uses light card boundaries so dense operational sections remain
+   easy to scan without turning the whole panel into nested cards. */
+.run-details-body > .controls,
+.run-details-body > .queue-messages-preview,
+.run-details-body > .queue-results-panel,
+.run-details-body > .run-log-panel,
 .run-section > .fanout-results-panel {
   padding: var(--space-lg);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: var(--surface);
+}
+
+.run-quick-actions {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.run-quick-actions-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-md);
+  min-height: 40px;
+  padding: 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.run-quick-actions-title,
+.run-quick-actions-summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-quick-actions-title {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 700;
+}
+
+.run-quick-actions-summary {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.run-quick-actions-body {
+  display: grid;
+  gap: var(--space-xl);
+  padding: 0;
+}
+
+.run-quick-actions-body > .fanout-results-panel,
+.run-quick-actions-body > .secondary-run-tool {
+  margin: 0;
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--border);
+}
+
+.run-details {
+  display: grid;
+  gap: var(--space-xl);
+}
+
+.run-details-toggle {
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: var(--space-md);
+  width: 100%;
+  min-height: 42px;
+  padding: var(--space-md) var(--space-lg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text);
+  text-align: left;
+}
+
+.run-details-toggle:hover:not(:disabled) {
+  border-color: transparent;
+  background: var(--surface-hover);
+}
+
+.run-details-title {
+  font-size: var(--text-md);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.run-details-summary {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-xs) var(--space-md);
+  min-width: 0;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+}
+
+.run-details-summary span {
+  white-space: nowrap;
+}
+
+.run-details-chevron {
+  width: 18px;
+  height: 18px;
+  transform: rotate(90deg);
+  transition: transform 150ms ease;
+}
+
+.run-details.is-expanded .run-details-chevron {
+  transform: rotate(-90deg);
+}
+
+.run-details-body {
+  display: grid;
+  gap: var(--space-xl);
+  padding: 0;
+}
+
+.run-details-body[hidden] {
+  display: none;
 }
 
 .settings-panel,
@@ -1088,7 +1243,9 @@ textarea::placeholder {
 }
 
 .control-grid.compact-controls button {
-  min-height: 38px;
+  min-height: 34px;
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-sm);
 }
 
 .control-grid.two {
@@ -1124,18 +1281,6 @@ textarea::placeholder {
 
 .queue-task-list {
   min-height: 0;
-}
-
-.provider-health-panel {
-  display: grid;
-  gap: var(--space-md);
-}
-
-.provider-health-provider {
-  flex-shrink: 0;
-  color: var(--muted);
-  font-size: var(--text-xs);
-  font-weight: 800;
 }
 
 .provider-health-list {
@@ -1197,21 +1342,6 @@ textarea::placeholder {
   border-color: var(--warning-border);
   background: var(--warning-bg);
   color: var(--warning-text);
-}
-
-.run-bottom-stack {
-  position: sticky;
-  bottom: -16px;
-  z-index: 2;
-  display: grid;
-  gap: var(--space-lg);
-  margin: 0 -2px -16px;
-  padding: var(--space-lg) var(--space-2xs) var(--space-2xl);
-  border-top: 1px solid var(--border);
-  /* Was 94% opaque, so list text scrolling underneath bled through and read
-     as a rendering glitch rather than as a fixed footer. */
-  background: var(--bg);
-  box-shadow: var(--shadow-up);
 }
 
 .run-composer-box textarea {
@@ -1875,28 +2005,268 @@ textarea::placeholder {
   font-size: var(--text-sm);
 }
 
+/* Settings console: existing provider tokens supply the personality; the
+   layout supplies the signal. Type stays on the 11/12/13/14px UI scale, large
+   rhythm lands on 8/12/18px, and section numbers are the recurring anchor. */
 .settings-panel {
+  display: grid;
+  gap: var(--space-2xl);
   margin: 0;
-  padding: var(--space-lg);
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.settings-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-lg);
+  align-items: start;
+}
+
+.settings-header-copy {
+  display: grid;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
+.settings-header h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: var(--text-xl);
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: var(--lh-tight);
+}
+
+.settings-header p,
+.settings-section-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+  line-height: var(--lh-snug);
+  text-wrap: pretty;
+}
+
+.settings-overview {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface);
+  border-radius: 8px;
+  background: var(--surface-soft);
 }
 
-.settings-panel > button {
-  width: 100%;
-  margin-top: var(--space-lg);
+.settings-overview-item {
+  display: grid;
+  gap: var(--space-2xs);
+  min-width: 0;
+  padding: var(--space-lg);
 }
 
-.settings-disclosure {
-  margin-top: var(--space-lg);
+.settings-overview-item + .settings-overview-item {
+  border-left: 1px solid var(--border);
 }
 
+.settings-overview-item span {
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: var(--lh-snug);
+}
+
+.settings-overview-item strong {
+  overflow-wrap: anywhere;
+  color: var(--provider-accent-text);
+  font-size: var(--text-sm);
+  font-weight: 800;
+  line-height: var(--lh-snug);
+}
+
+.settings-section,
 .advanced-settings {
   display: grid;
-  gap: var(--space-lg);
-  margin-top: var(--space-lg);
-  padding-top: var(--space-lg);
+  gap: var(--space-xl);
+}
+
+.settings-section-heading {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.settings-section-heading h3 {
+  margin: 0 0 var(--space-2xs);
+  color: var(--text);
+  font-size: var(--text-md);
+  font-weight: 800;
+  line-height: var(--lh-tight);
+}
+
+.settings-section-index {
+  padding-top: 1px;
+  color: var(--provider-accent-text);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 800;
+  line-height: var(--lh-normal);
+}
+
+.settings-control-list {
+  border-top: 1px solid var(--border);
+}
+
+.settings-panel .setting-row {
+  min-height: 44px;
+  margin: 0;
+  padding: var(--space-sm) 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.settings-panel .setting-row > span:first-child {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-switch {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 42px;
+  width: 42px;
+  height: 24px;
+}
+
+.settings-switch input {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.settings-switch-track {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  padding: 2px;
+  border: 1px solid var(--border-control);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  transition: background 150ms ease, border-color 150ms ease;
+}
+
+.settings-switch-track span {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--muted-2);
+  transition: transform 150ms ease, background 150ms ease;
+}
+
+.settings-switch input:checked + .settings-switch-track {
+  border-color: var(--provider-accent-border);
+  background: var(--provider-accent);
+}
+
+.settings-switch input:checked + .settings-switch-track span {
+  transform: translateX(18px);
+  background: var(--button-text);
+}
+
+.settings-switch input:focus-visible + .settings-switch-track {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.settings-basic-fields,
+.settings-field-grid {
+  display: grid;
+  gap: var(--space-xl);
+}
+
+.settings-panel .field {
+  margin: 0;
+}
+
+.settings-code-field input {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+.settings-choice-field {
+  display: grid;
+  gap: var(--space-xs);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-choice-field legend {
+  padding: 0;
+  color: var(--muted);
+  font-size: var(--text-sm);
+}
+
+.settings-choice-group {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.settings-choice {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 40px;
+  cursor: pointer;
+}
+
+.settings-choice input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-choice span {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: var(--lh-snug);
+  text-align: center;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.settings-choice input:checked + span {
+  border-color: var(--provider-accent-border);
+  background: var(--surface);
+  color: var(--provider-accent-text);
+}
+
+.settings-choice input:focus-visible + span {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.settings-advanced-section + .settings-advanced-section {
+  padding-top: var(--space-2xl);
   border-top: 1px solid var(--border);
 }
 
@@ -1916,21 +2286,32 @@ textarea::placeholder {
   line-height: var(--lh-snug);
 }
 
-.settings-group {
-  display: grid;
-  gap: var(--space-xs);
+.settings-dependent-fields {
+  padding-left: var(--space-xl);
+  border-left: 1px solid var(--border-strong);
 }
 
-.settings-group + .settings-group {
-  margin-top: var(--space-2xl);
-  padding-top: var(--space-2xl);
-  border-top: 1px solid var(--border);
+.settings-dependent-fields[aria-disabled="true"] {
+  opacity: 0.58;
 }
 
 .field-hint {
   color: var(--muted);
   font-size: var(--text-xs);
   line-height: var(--lh-snug);
+}
+
+.settings-model-list {
+  display: grid;
+  border-top: 1px solid var(--border);
+}
+
+.provider-model-setting {
+  display: grid;
+  gap: var(--space-md);
+  padding: var(--space-lg) 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
 }
 
 .badge {
@@ -1953,16 +2334,23 @@ textarea::placeholder {
 
 .sync-card {
   display: grid;
-  gap: var(--space-md);
+  gap: var(--space-lg);
   padding: var(--space-lg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
   background: var(--surface-soft);
 }
 
 .sync-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-md);
+}
+
+.sync-actions button {
+  min-height: 40px;
+  padding-right: var(--space-md);
+  padding-left: var(--space-md);
 }
 
 .sync-status {
@@ -1975,6 +2363,130 @@ textarea::placeholder {
 
 .sync-status-success {
   color: var(--done);
+}
+
+.settings-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--space-xl);
+  border-top: 1px solid var(--border);
+}
+
+.settings-reset {
+  min-height: 36px;
+}
+
+.settings-support {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: var(--space-md);
+  align-items: start;
+  padding-top: var(--space-2xl);
+  border-top: 1px solid var(--border);
+}
+
+.settings-support-copy {
+  display: grid;
+  gap: var(--space-lg);
+}
+
+.settings-support-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.settings-support .donate-copy strong {
+  font-size: var(--text-md);
+}
+
+.settings-support .donate-copy span {
+  font-size: var(--text-sm);
+}
+
+.settings-support img {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  width: min(100%, 220px);
+  aspect-ratio: 1 / 1.35;
+  justify-self: center;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  object-fit: cover;
+  object-position: center top;
+  background: #ffffff;
+}
+
+.settings-support .github-star-link {
+  min-height: 40px;
+  padding: var(--space-sm) var(--space-md);
+  text-align: center;
+}
+
+.settings-page-content {
+  display: grid;
+  gap: var(--space-2xl);
+  min-width: 0;
+}
+
+.settings-pagination {
+  min-width: 0;
+}
+
+.settings-page-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2xs);
+  min-width: 0;
+  padding: var(--space-2xs);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+}
+
+.settings-page-button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-xs);
+  align-items: center;
+  min-width: 0;
+  min-height: 36px;
+  padding: var(--space-xs);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  font-size: var(--text-xs);
+  font-weight: 700;
+  line-height: var(--lh-tight);
+  text-align: left;
+}
+
+.settings-page-button > span {
+  color: var(--muted-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 800;
+}
+
+.settings-page-button strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.settings-page-button[aria-current="page"] {
+  border-color: var(--provider-accent-border);
+  background: var(--surface);
+  color: var(--provider-accent-text);
+}
+
+.settings-page-button[aria-current="page"] > span {
+  color: var(--provider-accent-text);
+}
+
+.settings-page-button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .message-dismiss {
@@ -1995,15 +2507,6 @@ textarea::placeholder {
 
 .message-dismiss:hover:not(:disabled) {
   background: color-mix(in srgb, var(--error-border) 18%, transparent);
-}
-
-.provider-model-setting {
-  display: grid;
-  gap: var(--space-sm);
-  padding: var(--space-md);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--surface-soft);
 }
 
 .task-list,
@@ -2651,7 +3154,6 @@ button.workflow-tag {
     justify-content: flex-end;
   }
 
-  .provider-tag,
   .run-status-pill {
     max-width: 72px;
   }
@@ -2660,13 +3162,27 @@ button.workflow-tag {
 /* Genuinely cramped. Kept well below the 380px default so the normal layout
    is not degraded by stacking every two-column grid. */
 @container (max-width: 340px) {
-  /* .status-bar was listed here originally but it is display:flex with
-     flex-wrap, so grid-template-columns never did anything. */
-  .control-grid,
+  /* The health strip uses flex-wrap, so it does not need grid overrides. */
+  .control-grid:not(.compact-controls),
   .control-grid.two,
   .save-workflow-form,
   .workflow-rename-row {
     grid-template-columns: 1fr;
+  }
+
+  .run-details-toggle {
+    grid-template-columns: minmax(0, 1fr) 18px;
+  }
+
+  .run-details-summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-content: flex-start;
+  }
+
+  .provider-health-strip .provider-health-provider {
+    flex-basis: 100%;
+    width: fit-content;
   }
 
   .panel-nav button {
@@ -2675,5 +3191,40 @@ button.workflow-tag {
 
   .native-dock-header {
     grid-template-columns: 1fr;
+  }
+
+  .settings-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-overview-item + .settings-overview-item {
+    border-top: 1px solid var(--border);
+    border-left: 0;
+  }
+
+  .settings-support-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-page-button {
+    gap: var(--space-2xs);
+    padding: var(--space-2xs);
+  }
+}
+
+@container (min-width: 560px) {
+  .settings-basic-fields,
+  .settings-field-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .settings-support {
+    grid-template-columns: 24px minmax(0, 1fr) minmax(180px, 220px);
+  }
+
+  .settings-support img {
+    grid-column: 3;
+    grid-row: 1;
+    width: 100%;
   }
 }

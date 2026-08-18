@@ -165,16 +165,27 @@ function getBrowserLanguage(): "zh" | "en" {
   return language.startsWith("zh") ? "zh" : "en";
 }
 
+let contextMenuSetupInProgress = false;
+
 function createContextMenus(): void {
+  if (contextMenuSetupInProgress) {
+    return;
+  }
+
+  contextMenuSetupInProgress = true;
   const language = getBrowserLanguage();
   chrome.contextMenus.removeAll(() => {
-    MENU_ITEMS.forEach((item) => {
-      chrome.contextMenus.create({
-        id: item.id,
-        title: item.title[language],
-        contexts: item.contexts
+    try {
+      MENU_ITEMS.forEach((item) => {
+        chrome.contextMenus.create({
+          id: item.id,
+          title: item.title[language],
+          contexts: item.contexts
+        });
       });
-    });
+    } finally {
+      contextMenuSetupInProgress = false;
+    }
   });
 }
 

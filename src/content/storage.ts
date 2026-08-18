@@ -41,6 +41,9 @@ export const DEFAULT_SETTINGS: QueueSettings = {
   language: "zh",
   providerModels: DEFAULT_PROVIDER_MODELS,
   collapsed: false,
+  collapsedDockSide: "right",
+  collapsedDockYRatio: 0.72,
+  runDetailsExpanded: false,
   panelWidth: 380,
   captureReplies: false,
   notifyOnQueueComplete: true,
@@ -273,6 +276,18 @@ function normalizeSettings(value: unknown): QueueSettings {
     language,
     providerModels: normalizeProviderModels(value.providerModels),
     collapsed: typeof value.collapsed === "boolean" ? value.collapsed : DEFAULT_SETTINGS.collapsed,
+    collapsedDockSide: value.collapsedDockSide === "left" || value.collapsedDockSide === "right"
+      ? value.collapsedDockSide
+      : DEFAULT_SETTINGS.collapsedDockSide,
+    collapsedDockYRatio: normalizeNumber(
+      value.collapsedDockYRatio,
+      DEFAULT_SETTINGS.collapsedDockYRatio,
+      0.08,
+      0.92
+    ),
+    runDetailsExpanded: typeof value.runDetailsExpanded === "boolean"
+      ? value.runDetailsExpanded
+      : DEFAULT_SETTINGS.runDetailsExpanded,
     panelWidth: normalizeNumber(value.panelWidth, DEFAULT_SETTINGS.panelWidth, 300, 720),
     captureReplies: typeof value.captureReplies === "boolean" ? value.captureReplies : DEFAULT_SETTINGS.captureReplies,
     notifyOnQueueComplete: typeof value.notifyOnQueueComplete === "boolean" ? value.notifyOnQueueComplete : DEFAULT_SETTINGS.notifyOnQueueComplete,

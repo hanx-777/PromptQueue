@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { getTexts, type Texts } from "../content/i18n";
 import {
   buildContextPrompt,
@@ -36,8 +36,15 @@ import {
   type WorkflowVariableValues
 } from "../utils/workflowVariables";
 import { getIncompleteRowCount, getMissingVariableColumns, parseVariableTable } from "../utils/csvVariables";
+import {
+  calculateCollapsedDockPlacement,
+  calculatePanelWidth,
+  didCollapsedDockDrag,
+  shouldSuppressCollapsedDockClick,
+  type CollapsedDockPlacement
+} from "../utils/collapsedDock";
 import { copyWorkflow, filterWorkflows, normalizeWorkflowTags } from "../utils/workflows";
-import { CollapseIcon, ExpandIcon, SettingsIcon, SwapIcon } from "./Icons";
+import { CollapseIcon, ExpandIcon, SwapIcon } from "./Icons";
 import { NativeQueueDock } from "./NativeQueueDock";
 import { SettingsPanel } from "./SettingsPanel";
 import { SteerBox } from "./SteerBox";
@@ -453,6 +460,14 @@ export function QueuePanel(): JSX.Element {
   const steerBusyRef = useRef(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const resizingRef = useRef(false);
+  const settingsRef = useRef(settings);
+  const collapsedDockDragRef = useRef<{
+    pointerId: number;
+    start: { x: number; y: number };
+    dragged: boolean;
+    placement: CollapsedDockPlacement;
+  } | null>(null);
+  const suppressCollapsedDockClickRef = useRef(false);
   const draggedWorkflowIdRef = useRef<string | null>(null);
   const draggedTaskIdRef = useRef<string | null>(null);
 
@@ -462,6 +477,7 @@ export function QueuePanel(): JSX.Element {
   const provider = useMemo(() => getCurrentProvider(), []);
   const providerLabel = provider.label;
   const providerClass = `provider-${provider.id}`;
+  settingsRef.current = settings;
 
   const refresh = useCallback(async () => {
     const [nextState, nextSettings, nextWorkflows] = await Promise.all([
@@ -556,6 +572,7 @@ export function QueuePanel(): JSX.Element {
   }, []);
 
   const persistSettings = useCallback(async (nextSettings: QueueSettings) => {
+    settingsRef.current = nextSettings;
     setSettings(nextSettings);
     await saveSettings(nextSettings);
   }, []);
@@ -1434,19 +1451,78 @@ export function QueuePanel(): JSX.Element {
       if (!resizingRef.current) {
         return;
       }
-      latestWidth = clamp(startWidth + (startX - moveEvent.clientX), 300, Math.min(720, window.innerWidth - 24));
-      setSettings((current) => ({ ...current, panelWidth: latestWidth }));
+      latestWidth = calculatePanelWidth(
+        startWidth,
+        startX,
+        moveEvent.clientX,
+        settings.collapsedDockSide,
+        window.innerWidth
+      );
+      const nextSettings = { ...settingsRef.current, panelWidth: latestWidth };
+      settingsRef.current = nextSettings;
+      setSettings(nextSettings);
     };
 
     const onUp = (): void => {
       resizingRef.current = false;
       document.removeEventListener("mousemove", onMove);
       document.removeEventListener("mouseup", onUp);
-      void saveSettings({ ...settings, panelWidth: latestWidth });
+      void persistSettings({ ...settingsRef.current, panelWidth: latestWidth });
     };
 
     document.addEventListener("mousemove", onMove);
     document.addEventListener("mouseup", onUp);
+  };
+
+  const updateCollapsedDockFromPointer = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+    const drag = collapsedDockDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    const point = { x: event.clientX, y: event.clientY };
+    drag.dragged = drag.dragged || didCollapsedDockDrag(drag.start, point);
+    if (!drag.dragged) {
+      return;
+    }
+
+    event.preventDefault();
+    drag.placement = calculateCollapsedDockPlacement(point, {
+      width: window.innerWidth,
+      height: window.innerHeight
+    });
+    const nextSettings = {
+      ...settingsRef.current,
+      collapsedDockSide: drag.placement.side,
+      collapsedDockYRatio: drag.placement.yRatio
+    };
+    settingsRef.current = nextSettings;
+    setSettings(nextSettings);
+  };
+
+  const finishCollapsedDockPointer = (
+    event: ReactPointerEvent<HTMLButtonElement>,
+    pointerCancelled = false
+  ): void => {
+    const drag = collapsedDockDragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return;
+    }
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    collapsedDockDragRef.current = null;
+
+    if (drag.dragged) {
+      event.preventDefault();
+      suppressCollapsedDockClickRef.current = shouldSuppressCollapsedDockClick(true, pointerCancelled);
+      void persistSettings({
+        ...settingsRef.current,
+        collapsedDockSide: drag.placement.side,
+        collapsedDockYRatio: drag.placement.yRatio
+      });
+    }
   };
 
   const displayMessageSource = localMessage
@@ -1504,15 +1580,46 @@ export function QueuePanel(): JSX.Element {
     return (
       <>
         {nativeQueueDock}
-        <aside className={`queue-shell collapsed theme-${theme} ${providerClass}`} style={{ width: 44 }}>
+        <aside
+          className={`queue-shell collapsed dock-${settings.collapsedDockSide} theme-${theme} ${providerClass}`}
+          style={{
+            width: 36,
+            top: `clamp(24px, ${settings.collapsedDockYRatio * 100}%, calc(100vh - 24px))`
+          }}
+        >
           <button
             type="button"
             className="collapse-tab"
-            onClick={() => void persistSettings({ ...settings, collapsed: false })}
+            onPointerDown={(event) => {
+              if (event.button !== 0) {
+                return;
+              }
+              event.currentTarget.setPointerCapture(event.pointerId);
+              collapsedDockDragRef.current = {
+                pointerId: event.pointerId,
+                start: { x: event.clientX, y: event.clientY },
+                dragged: false,
+                placement: {
+                  side: settings.collapsedDockSide,
+                  yRatio: settings.collapsedDockYRatio
+                }
+              };
+            }}
+            onPointerMove={updateCollapsedDockFromPointer}
+            onPointerUp={finishCollapsedDockPointer}
+            onPointerCancel={(event) => finishCollapsedDockPointer(event, true)}
+            onClick={() => {
+              if (suppressCollapsedDockClickRef.current) {
+                suppressCollapsedDockClickRef.current = false;
+                return;
+              }
+              void persistSettings({ ...settingsRef.current, collapsed: false });
+            }}
             aria-label={texts.expandPanel}
-            title={`${texts.expandPanel} (Alt+Q)`}
+            title={texts.expandPanel}
+            aria-keyshortcuts="Alt+Q"
           >
-            <ExpandIcon />
+            {settings.collapsedDockSide === "right" ? <ExpandIcon /> : <CollapseIcon />}
             <span>PQ</span>
           </button>
         </aside>
@@ -1524,7 +1631,7 @@ export function QueuePanel(): JSX.Element {
     <>
       {nativeQueueDock}
       <aside
-        className={`queue-shell theme-${theme} ${providerClass}`}
+        className={`queue-shell dock-${settings.collapsedDockSide} theme-${theme} ${providerClass}`}
         style={{ width: settings.panelWidth }}
         aria-label={texts.appTitle}
       >
@@ -1540,7 +1647,6 @@ export function QueuePanel(): JSX.Element {
       <header className="panel-header">
         <div className="header-brand">
           <h1>{texts.appTitle}</h1>
-          <span className="provider-tag">{providerLabel}</span>
           <p>{texts.appSubtitle} · {providerLabel}</p>
         </div>
         <div className="header-actions">
@@ -1557,28 +1663,44 @@ export function QueuePanel(): JSX.Element {
           <button
             type="button"
             className="icon-button"
-            onClick={() => setActiveSection("settings")}
-            aria-label={texts.openSettings}
-          >
-            <SettingsIcon />
-          </button>
-          <button
-            type="button"
-            className="icon-button"
             onClick={() => void persistSettings({ ...settings, collapsed: true })}
             aria-label={texts.collapsePanel}
-            title={`${texts.collapsePanel} (Alt+Q)`}
+            title={texts.collapsePanel}
+            aria-keyshortcuts="Alt+Q"
           >
-            <CollapseIcon />
+            {settings.collapsedDockSide === "right" ? <CollapseIcon /> : <ExpandIcon />}
           </button>
         </div>
       </header>
 
-      <section className="status-bar" aria-label={texts.queueStatus}>
-        <span>{texts.current}: {runningIndex || "-"}</span>
-        <span>{texts.pending}: {counters.pending}</span>
-        <span>{texts.failed}: {counters.failed}</span>
-        <span>{texts.skipped}: {counters.skipped}</span>
+      <section className="provider-health-strip" aria-label={texts.providerHealthTitle}>
+        <span className="provider-health-provider">{providerHealth.provider}</span>
+        <div className="provider-health-list">
+          <span
+            className={`provider-health-chip ${healthClassName(providerHealth.composerFound)}`}
+            aria-label={healthLabel(texts.providerHealthComposer, providerHealth.composerFound, texts)}
+          >
+            {texts.providerHealthComposer}
+          </span>
+          <span
+            className={`provider-health-chip ${healthClassName(providerHealth.sendButtonFound)}`}
+            aria-label={healthLabel(texts.providerHealthSend, providerHealth.sendButtonFound, texts)}
+          >
+            {texts.providerHealthSend}
+          </span>
+          <span
+            className={`provider-health-chip ${healthClassName(providerHealth.stopButtonFound)}`}
+            aria-label={healthLabel(texts.providerHealthStop, providerHealth.stopButtonFound, texts)}
+          >
+            {texts.providerHealthStop}
+          </span>
+          <span
+            className={`provider-health-chip ${providerHealth.pageBusy ? "health-busy" : "health-ok"}`}
+            aria-label={`${texts.providerHealthBusy}: ${providerHealth.pageBusy ? texts.providerHealthBusyValue : texts.providerHealthIdle}`}
+          >
+            {texts.providerHealthBusy}
+          </span>
+        </div>
       </section>
 
       {displayMessage ? (
@@ -1618,39 +1740,159 @@ export function QueuePanel(): JSX.Element {
       <main className="panel-body">
         {activeSection === "run" ? (
           <section className="panel-section run-section" aria-label={texts.navRun}>
-            <section className="provider-health-panel" aria-label={texts.providerHealthTitle}>
-              <div className="section-title-row compact">
-                <h2>{texts.providerHealthTitle}</h2>
-                <span className="provider-health-provider">{providerHealth.provider}</span>
+            <section className="run-quick-actions" aria-label={texts.addQueuePrompt}>
+              <div className="run-quick-actions-header">
+                <h2 className="run-quick-actions-title">{texts.addPromptLabel}</h2>
+                {fanoutResults.length ? (
+                  <span className="run-quick-actions-summary">{fanoutSummaryText}</span>
+                ) : null}
               </div>
-              <div className="provider-health-list">
-                <span
-                  className={`provider-health-chip ${healthClassName(providerHealth.composerFound)}`}
-                  aria-label={healthLabel(texts.providerHealthComposer, providerHealth.composerFound, texts)}
-                >
-                  {texts.providerHealthComposer}
-                </span>
-                <span
-                  className={`provider-health-chip ${healthClassName(providerHealth.sendButtonFound)}`}
-                  aria-label={healthLabel(texts.providerHealthSend, providerHealth.sendButtonFound, texts)}
-                >
-                  {texts.providerHealthSend}
-                </span>
-                <span
-                  className={`provider-health-chip ${healthClassName(providerHealth.stopButtonFound)}`}
-                  aria-label={healthLabel(texts.providerHealthStop, providerHealth.stopButtonFound, texts)}
-                >
-                  {texts.providerHealthStop}
-                </span>
-                <span
-                  className={`provider-health-chip ${providerHealth.pageBusy ? "health-busy" : "health-ok"}`}
-                  aria-label={`${texts.providerHealthBusy}: ${providerHealth.pageBusy ? texts.providerHealthBusyValue : texts.providerHealthIdle}`}
-                >
-                  {texts.providerHealthBusy}
-                </span>
+
+              <div className="run-quick-actions-body">
+                  <section className="add-box run-composer-box" aria-label={texts.addQueuePrompt}>
+                    <textarea
+                      value={promptDraft}
+                      onChange={(event) => setPromptDraft(event.target.value)}
+                      placeholder={texts.addPlaceholder}
+                      rows={4}
+                    />
+                    <div className="run-composer-actions">
+                      <button
+                        type="button"
+                        onClick={() => void runBusy("add", addDraftToQueue)}
+                        disabled={Boolean(busyAction) || !promptDraft.trim()}
+                      >
+                        {texts.addToQueue}
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => void startFanout()}
+                        disabled={fanoutBusy || !promptDraft.trim()}
+                      >
+                        {texts.fanoutButton}
+                      </button>
+                    </div>
+                    <SteerBox
+                      settings={settings}
+                      texts={texts}
+                      busy={steerBusy || Boolean(busyAction) || fanoutBusy}
+                      prompt={promptDraft}
+                      onSettingsChange={(nextSettings) => void persistSettings(nextSettings)}
+                      onInsertNext={(prompt) => runSteer(() => insertSteerTask(prompt))}
+                      onStopAndSteer={stopAndSteer}
+                      onConsumed={() => setPromptDraft("")}
+                    />
+                  </section>
+
+                  {fanoutResults.length ? (
+                    <section className="fanout-results-panel" aria-label={texts.fanoutResultsTitle}>
+                      <div className="section-title-row compact">
+                        <div className="fanout-results-heading">
+                          <h2>{texts.fanoutResultsTitle}</h2>
+                          <span aria-live="polite">{fanoutSummaryText}</span>
+                        </div>
+                        <button
+                          type="button"
+                          className="secondary mini-action"
+                          onClick={() => {
+                            setFanoutResults([]);
+                            setFanoutSessionId(null);
+                          }}
+                        >
+                          {texts.fanoutClear}
+                        </button>
+                      </div>
+                      <div className="fanout-result-list">
+                        {fanoutResults.map((result) => (
+                          <div className={`fanout-result-card fanout-result-${result.status}`} key={result.provider}>
+                            <div className="section-title-row compact">
+                              <strong>{result.provider}</strong>
+                              <span className={`status-chip status-${result.status === "done" ? "done" : result.status === "error" ? "failed" : "running"}`}>
+                                {result.status === "pending" ? texts.fanoutPending : result.status === "error" ? texts.failed : texts.done}
+                              </span>
+                            </div>
+                            {result.status === "pending" ? <p className="fanout-pending-note">{texts.fanoutPendingDetail}</p> : null}
+                            {result.text ? (
+                              <>
+                                <p className="task-result-text">{result.text}</p>
+                                <div className="task-actions task-actions-wrap">
+                                  <button type="button" className="secondary" onClick={() => useFanoutResultAsCompare("old", result.text!)}>
+                                    {texts.fanoutUseAsOld}
+                                  </button>
+                                  <button type="button" className="secondary" onClick={() => useFanoutResultAsCompare("new", result.text!)}>
+                                    {texts.fanoutUseAsNew}
+                                  </button>
+                                </div>
+                              </>
+                            ) : null}
+                            {result.error ? <p className="task-error">{result.error}</p> : null}
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+
+                  <section className="save-workflow-box secondary-run-tool" aria-label={texts.saveAsWorkflow}>
+                    <div className="section-title-row compact">
+                      <h2>{texts.saveAsWorkflow}</h2>
+                      <button
+                        type="button"
+                        className="secondary mini-action"
+                        onClick={() => setSaveWorkflowOpen((value) => !value)}
+                        disabled={!visibleQueueTasks.length}
+                        aria-expanded={saveWorkflowOpen}
+                      >
+                        {saveWorkflowOpen ? texts.cancel : texts.saveAsWorkflow}
+                      </button>
+                    </div>
+                    {saveWorkflowOpen ? (
+                      <div className="save-workflow-form">
+                        <input
+                          value={workflowNameDraft}
+                          onChange={(event) => setWorkflowNameDraft(event.target.value)}
+                          placeholder={texts.workflowNamePlaceholder}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void runBusy("save-workflow", saveCurrentQueueAsWorkflow)}
+                          disabled={Boolean(busyAction) || !workflowNameDraft.trim() || !visibleQueueTasks.length}
+                        >
+                          {texts.save}
+                        </button>
+                      </div>
+                    ) : (
+                      <p className="helper-text">{texts.saveWorkflowHint}</p>
+                    )}
+                  </section>
               </div>
             </section>
 
+            <section className={`run-details ${settings.runDetailsExpanded ? "is-expanded" : "is-collapsed"}`}>
+              <button
+                type="button"
+                className="run-details-toggle"
+                aria-expanded={settings.runDetailsExpanded}
+                aria-controls="promptqueue-run-details"
+                onClick={() => void persistSettings({
+                  ...settings,
+                  runDetailsExpanded: !settings.runDetailsExpanded
+                })}
+              >
+                <span className="run-details-title">{texts.runDetails}</span>
+                <span className="run-details-summary" aria-live="polite">
+                  <span>{texts.pending}: {counters.pending}</span>
+                  <span>{texts.done}: {counters.done}</span>
+                  <span>{texts.failed}: {counters.failed}</span>
+                </span>
+                <CollapseIcon className="run-details-chevron" />
+              </button>
+
+              <div
+                className="run-details-body"
+                id="promptqueue-run-details"
+                hidden={!settings.runDetailsExpanded}
+              >
             <section className="controls" aria-label={texts.controls}>
               <div className="section-title-row compact">
                 <h2>{texts.controls}</h2>
@@ -1801,127 +2043,9 @@ export function QueuePanel(): JSX.Element {
               )}
             </section>
 
-            <section className="save-workflow-box secondary-run-tool" aria-label={texts.saveAsWorkflow}>
-              <div className="section-title-row compact">
-                <h2>{texts.saveAsWorkflow}</h2>
-                <button
-                  type="button"
-                  className="secondary mini-action"
-                  onClick={() => setSaveWorkflowOpen((value) => !value)}
-                  disabled={!visibleQueueTasks.length}
-                  aria-expanded={saveWorkflowOpen}
-                >
-                  {saveWorkflowOpen ? texts.cancel : texts.saveAsWorkflow}
-                </button>
               </div>
-              {saveWorkflowOpen ? (
-                <div className="save-workflow-form">
-                  <input
-                    value={workflowNameDraft}
-                    onChange={(event) => setWorkflowNameDraft(event.target.value)}
-                    placeholder={texts.workflowNamePlaceholder}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void runBusy("save-workflow", saveCurrentQueueAsWorkflow)}
-                    disabled={Boolean(busyAction) || !workflowNameDraft.trim() || !visibleQueueTasks.length}
-                  >
-                    {texts.save}
-                  </button>
-                </div>
-              ) : (
-                <p className="helper-text">{texts.saveWorkflowHint}</p>
-              )}
             </section>
 
-            <div className="run-bottom-stack">
-              <section className="add-box run-composer-box" aria-label={texts.addQueuePrompt}>
-                <div className="section-title-row compact">
-                  <h2>{texts.addPromptLabel}</h2>
-                </div>
-                <textarea
-                  value={promptDraft}
-                  onChange={(event) => setPromptDraft(event.target.value)}
-                  placeholder={texts.addPlaceholder}
-                  rows={4}
-                />
-                <div className="run-composer-actions">
-                  <button
-                    type="button"
-                    onClick={() => void runBusy("add", addDraftToQueue)}
-                    disabled={Boolean(busyAction) || !promptDraft.trim()}
-                  >
-                    {texts.addToQueue}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => void startFanout()}
-                    disabled={fanoutBusy || !promptDraft.trim()}
-                  >
-                    {texts.fanoutButton}
-                  </button>
-                </div>
-                <SteerBox
-                  settings={settings}
-                  texts={texts}
-                  busy={steerBusy || Boolean(busyAction) || fanoutBusy}
-                  prompt={promptDraft}
-                  onSettingsChange={(nextSettings) => void persistSettings(nextSettings)}
-                  onInsertNext={(prompt) => runSteer(() => insertSteerTask(prompt))}
-                  onStopAndSteer={stopAndSteer}
-                  onConsumed={() => setPromptDraft("")}
-                />
-              </section>
-
-              {fanoutResults.length ? (
-                <section className="fanout-results-panel" aria-label={texts.fanoutResultsTitle}>
-                  <div className="section-title-row compact">
-                    <div className="fanout-results-heading">
-                      <h2>{texts.fanoutResultsTitle}</h2>
-                      <span aria-live="polite">{fanoutSummaryText}</span>
-                    </div>
-                    <button
-                      type="button"
-                      className="secondary mini-action"
-                      onClick={() => {
-                        setFanoutResults([]);
-                        setFanoutSessionId(null);
-                      }}
-                    >
-                      {texts.fanoutClear}
-                    </button>
-                  </div>
-                  <div className="fanout-result-list">
-                    {fanoutResults.map((result) => (
-                      <div className={`fanout-result-card fanout-result-${result.status}`} key={result.provider}>
-                        <div className="section-title-row compact">
-                          <strong>{result.provider}</strong>
-                          <span className={`status-chip status-${result.status === "done" ? "done" : result.status === "error" ? "failed" : "running"}`}>
-                            {result.status === "pending" ? texts.fanoutPending : result.status === "error" ? texts.failed : texts.done}
-                          </span>
-                        </div>
-                        {result.status === "pending" ? <p className="fanout-pending-note">{texts.fanoutPendingDetail}</p> : null}
-                        {result.text ? (
-                          <>
-                            <p className="task-result-text">{result.text}</p>
-                            <div className="task-actions task-actions-wrap">
-                              <button type="button" className="secondary" onClick={() => useFanoutResultAsCompare("old", result.text!)}>
-                                {texts.fanoutUseAsOld}
-                              </button>
-                              <button type="button" className="secondary" onClick={() => useFanoutResultAsCompare("new", result.text!)}>
-                                {texts.fanoutUseAsNew}
-                              </button>
-                            </div>
-                          </>
-                        ) : null}
-                        {result.error ? <p className="task-error">{result.error}</p> : null}
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-            </div>
           </section>
         ) : null}
 

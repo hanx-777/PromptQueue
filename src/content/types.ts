@@ -4,6 +4,8 @@ export type ProviderModelKey = "chatgpt" | "gemini" | "claude";
 
 export type QueueTheme = "page" | "light" | "dark";
 
+export type CollapsedDockSide = "left" | "right";
+
 export type ModelPreferenceMode = "auto-highest" | "preset" | "custom";
 
 export interface ProviderModelPreference {
@@ -55,6 +57,9 @@ export interface QueueSettings {
   language: "zh" | "en";
   providerModels: ProviderModelSettings;
   collapsed: boolean;
+  collapsedDockSide: CollapsedDockSide;
+  collapsedDockYRatio: number;
+  runDetailsExpanded: boolean;
   panelWidth: number;
   /** Opt-in: capture the visible text of each reply after a task completes, stored locally on the task. Default false. */
   captureReplies: boolean;

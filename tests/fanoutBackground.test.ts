@@ -11,20 +11,46 @@ interface ChromeMock {
   listeners: RuntimeMessageListener[];
   sentMessages: Array<{ tabId: number; message: Record<string, unknown> }>;
   activatedTabs: number[];
+  contextMenuCreates: string[];
+  installedListeners: Array<() => void>;
+  startupListeners: Array<() => void>;
+  contextMenuRemoveAllCalls: number;
+  flushContextMenuRemoval: () => void;
 }
 
 function installChromeMock(
   tabs: chrome.tabs.Tab[],
-  options: { stallFanoutRunMessages?: boolean; stallFanoutResultMessages?: boolean } = {}
+  options: {
+    stallFanoutRunMessages?: boolean;
+    stallFanoutResultMessages?: boolean;
+    deferContextMenuRemoval?: boolean;
+  } = {}
 ): ChromeMock {
   const listeners: RuntimeMessageListener[] = [];
   const sentMessages: Array<{ tabId: number; message: Record<string, unknown> }> = [];
   const activatedTabs: number[] = [];
+  const contextMenuCreates: string[] = [];
+  const installedListeners: Array<() => void> = [];
+  const startupListeners: Array<() => void> = [];
+  const contextMenuRemovalCallbacks: Array<() => void> = [];
+  let contextMenuRemoveAllCalls = 0;
 
   (globalThis as unknown as { chrome: typeof chrome }).chrome = {
     contextMenus: {
-      create: () => undefined,
-      removeAll: (callback?: () => void) => callback?.(),
+      create: (properties: chrome.contextMenus.CreateProperties) => {
+        contextMenuCreates.push(String(properties.id));
+        return undefined;
+      },
+      removeAll: (callback?: () => void) => {
+        contextMenuRemoveAllCalls += 1;
+        if (callback) {
+          if (options.deferContextMenuRemoval) {
+            contextMenuRemovalCallbacks.push(callback);
+          } else {
+            callback();
+          }
+        }
+      },
       onClicked: {
         addListener: () => undefined
       }
@@ -45,7 +71,9 @@ function installChromeMock(
       getURL: (path: string) => path,
       lastError: undefined,
       onInstalled: {
-        addListener: () => undefined
+        addListener: (listener: () => void) => {
+          installedListeners.push(listener);
+        }
       },
       onMessage: {
         addListener: (listener: RuntimeMessageListener) => {
@@ -54,7 +82,9 @@ function installChromeMock(
         removeListener: () => undefined
       },
       onStartup: {
-        addListener: () => undefined
+        addListener: (listener: () => void) => {
+          startupListeners.push(listener);
+        }
       }
     },
     storage: {
@@ -89,7 +119,22 @@ function installChromeMock(
     }
   } as unknown as typeof chrome;
 
-  return { listeners, sentMessages, activatedTabs };
+  return {
+    listeners,
+    sentMessages,
+    activatedTabs,
+    contextMenuCreates,
+    installedListeners,
+    startupListeners,
+    get contextMenuRemoveAllCalls() {
+      return contextMenuRemoveAllCalls;
+    },
+    flushContextMenuRemoval() {
+      while (contextMenuRemovalCallbacks.length > 0) {
+        contextMenuRemovalCallbacks.shift()?.();
+      }
+    }
+  };
 }
 
 function timeoutAfter(ms: number): Promise<"timeout"> {
@@ -126,6 +171,19 @@ async function loadBackground(): Promise<void> {
 }
 
 describe("background fan-out dispatch", () => {
+  it("coalesces overlapping context menu setup requests", async () => {
+    const chromeMock = installChromeMock([], { deferContextMenuRemoval: true });
+
+    await loadBackground();
+    chromeMock.installedListeners.forEach((listener) => listener());
+    chromeMock.startupListeners.forEach((listener) => listener());
+
+    assert.equal(chromeMock.contextMenuRemoveAllCalls, 1);
+    chromeMock.flushContextMenuRemoval();
+    assert.equal(chromeMock.contextMenuCreates.length, 6);
+    assert.equal(new Set(chromeMock.contextMenuCreates).size, 6);
+  });
+
   it("deduplicates provider targets and keeps async result relays alive", async () => {
     const chromeMock = installChromeMock([
       { id: 1, url: "https://chatgpt.com/c/current", active: true, lastAccessed: 10 } as chrome.tabs.Tab,

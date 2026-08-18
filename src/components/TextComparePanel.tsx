@@ -186,7 +186,13 @@ export function TextComparePanel({
       {onClose ? (
         <div className="section-title-row">
           <h2>{texts.navCompare}</h2>
-          <button type="button" className="icon-button" onClick={onClose} aria-label={texts.closePanel}>
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onClose}
+            aria-label={texts.closePanel}
+            title={texts.closePanel}
+          >
             <CloseIcon />
           </button>
         </div>

@@ -16,6 +16,7 @@ interface SettingsPanelProps {
 const GOOGLE_OAUTH_CLIENT_ID_PLACEHOLDER = "YOUR_GOOGLE_OAUTH_CLIENT_ID";
 const GITHUB_REPO_URL = "https://github.com/hanx-777/PromptQueue";
 const KOFI_URL = "https://ko-fi.com/hanx1221";
+type SettingsPage = "general" | "advanced" | "support";
 
 function isGoogleDriveSyncConfigured(): boolean {
   try {
@@ -36,12 +37,27 @@ async function ensureIdentityPermission(): Promise<boolean> {
 }
 
 export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPanelProps): JSX.Element {
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [activePage, setActivePage] = useState<SettingsPage>("general");
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "success" | "error">("idle");
   const [syncMessage, setSyncMessage] = useState<string>("");
   const providerModels = settings.providerModels ?? DEFAULT_PROVIDER_MODELS;
   const providerIds: ProviderModelKey[] = ["chatgpt", "gemini", "claude"];
   const syncConfigured = isGoogleDriveSyncConfigured();
+  const automationEnabledCount = [
+    settings.autoStartNext,
+    settings.appendContextMode,
+    settings.notifyOnQueueComplete
+  ].filter(Boolean).length;
+  const automaticModelCount = providerIds.filter((providerId) => providerModels[providerId].mode === "auto-highest").length;
+  const configuredModelCount = providerIds.length - automaticModelCount;
+  const modelSummary = configuredModelCount
+    ? `${configuredModelCount}/3 ${texts.settingsOverviewSpecified}`
+    : `${automaticModelCount}/3 ${texts.settingsOverviewAutomatic}`;
+  const settingsPages: Array<{ id: SettingsPage; label: string }> = [
+    { id: "general", label: texts.settingsPageGeneral },
+    { id: "advanced", label: texts.settingsPageAdvanced },
+    { id: "support", label: texts.settingsPageSupport }
+  ];
   const donateImageUrl = useMemo(() => {
     if (typeof chrome !== "undefined" && chrome.runtime?.getURL) {
       return chrome.runtime.getURL("assets/donate-wechat.jpg");
@@ -141,116 +157,200 @@ export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPa
 
   return (
     <section className="settings-panel" aria-label={texts.settings}>
-      <div className="section-title-row">
-        <h2>{texts.settings}</h2>
-        <button type="button" className="icon-button" onClick={onClose} aria-label={texts.closeSettings}>
+      <header className="settings-header">
+        <div className="settings-header-copy">
+          <h2>{texts.settings}</h2>
+          <p>{texts.settingsIntro}</p>
+        </div>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onClose}
+          aria-label={texts.closeSettings}
+          title={texts.closeSettings}
+        >
           <CloseIcon />
+        </button>
+      </header>
+
+      <nav className="settings-pagination" aria-label={texts.settingsPagination}>
+        <div className="settings-page-list">
+          {settingsPages.map((page, index) => (
+            <button
+              type="button"
+              key={page.id}
+              className="settings-page-button"
+              onClick={() => setActivePage(page.id)}
+              aria-current={activePage === page.id ? "page" : undefined}
+            >
+              <span aria-hidden="true">{index + 1}</span>
+              <strong>{page.label}</strong>
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      <div className="settings-overview" aria-label={texts.settings}>
+        <div className="settings-overview-item">
+          <span>{texts.settingsOverviewAutomation}</span>
+          <strong>{automationEnabledCount}/3 {texts.settingsOverviewEnabled}</strong>
+        </div>
+        <div className="settings-overview-item">
+          <span>{texts.settingsOverviewModels}</span>
+          <strong>{modelSummary}</strong>
+        </div>
+        <div className="settings-overview-item">
+          <span>{texts.settingsOverviewData}</span>
+          <strong>{settings.captureReplies ? texts.settingsOverviewCaptureOn : texts.settingsOverviewCaptureOff}</strong>
+        </div>
+      </div>
+
+      <div className="settings-page-content">
+        {activePage === "general" ? (
+          <>
+      <section className="settings-section" aria-labelledby="promptqueue-general-settings">
+        <div className="settings-section-heading">
+          <span className="settings-section-index" aria-hidden="true">01</span>
+          <div>
+            <h3 id="promptqueue-general-settings">{texts.settingsGroupBasic}</h3>
+            <p>{texts.settingsGroupBasicHint}</p>
+          </div>
+        </div>
+
+        <div className="settings-control-list">
+          <label className="setting-row settings-toggle-row">
+            <span>{texts.autoStartNext}</span>
+            <span className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.autoStartNext}
+                onChange={(event) => update("autoStartNext", event.target.checked)}
+              />
+              <span className="settings-switch-track" aria-hidden="true"><span /></span>
+            </span>
+          </label>
+
+          <label className="setting-row settings-toggle-row">
+            <span>{texts.appendContextMode}</span>
+            <span className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.appendContextMode}
+                onChange={(event) => update("appendContextMode", event.target.checked)}
+              />
+              <span className="settings-switch-track" aria-hidden="true"><span /></span>
+            </span>
+          </label>
+
+          <label className="setting-row settings-toggle-row">
+            <span>{texts.notifyOnQueueComplete}</span>
+            <span className="settings-switch">
+              <input
+                type="checkbox"
+                checked={settings.notifyOnQueueComplete}
+                onChange={(event) => update("notifyOnQueueComplete", event.target.checked)}
+              />
+              <span className="settings-switch-track" aria-hidden="true"><span /></span>
+            </span>
+          </label>
+        </div>
+
+        <div className="settings-basic-fields">
+          <label className="field settings-code-field">
+            <span>{texts.batchSeparator}</span>
+            <input
+              type="text"
+              value={settings.batchSeparator}
+              onChange={(event) => update("batchSeparator", event.target.value)}
+            />
+          </label>
+
+          <fieldset className="settings-choice-field">
+            <legend>{texts.theme}</legend>
+            <div className="settings-choice-group" role="radiogroup" aria-label={texts.theme}>
+              <label className="settings-choice">
+                <input type="radio" name="promptqueue-theme" checked={settings.theme === "page"} onChange={() => update("theme", "page")} />
+                <span>{texts.system}</span>
+              </label>
+              <label className="settings-choice">
+                <input type="radio" name="promptqueue-theme" checked={settings.theme === "light"} onChange={() => update("theme", "light")} />
+                <span>{texts.light}</span>
+              </label>
+              <label className="settings-choice">
+                <input type="radio" name="promptqueue-theme" checked={settings.theme === "dark"} onChange={() => update("theme", "dark")} />
+                <span>{texts.dark}</span>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset className="settings-choice-field">
+            <legend>{texts.language}</legend>
+            <div className="settings-choice-group" role="radiogroup" aria-label={texts.language}>
+              <label className="settings-choice">
+                <input type="radio" name="promptqueue-language" checked={settings.language === "zh"} onChange={() => update("language", "zh")} />
+                <span>{texts.chinese}</span>
+              </label>
+              <label className="settings-choice">
+                <input type="radio" name="promptqueue-language" checked={settings.language === "en"} onChange={() => update("language", "en")} />
+                <span>{texts.english}</span>
+              </label>
+            </div>
+          </fieldset>
+        </div>
+      </section>
+
+      <div className="settings-footer-actions">
+        <button
+          type="button"
+          className="secondary settings-reset"
+          onClick={() => update("panelWidth", 380)}
+        >
+          {texts.resetWidth}
         </button>
       </div>
 
-      <div className="settings-group" aria-label={texts.settingsGroupBasic}>
-        <label className="setting-row">
-          <span>{texts.autoStartNext}</span>
-          <input
-            type="checkbox"
-            checked={settings.autoStartNext}
-            onChange={(event) => update("autoStartNext", event.target.checked)}
-          />
-        </label>
+          </>
+        ) : null}
 
-        <label className="setting-row">
-          <span>{texts.appendContextMode}</span>
-          <input
-            type="checkbox"
-            checked={settings.appendContextMode}
-            onChange={(event) => update("appendContextMode", event.target.checked)}
-          />
-        </label>
-
-        <label className="setting-row">
-          <span>{texts.notifyOnQueueComplete}</span>
-          <input
-            type="checkbox"
-            checked={settings.notifyOnQueueComplete}
-            onChange={(event) => update("notifyOnQueueComplete", event.target.checked)}
-          />
-        </label>
-
-        <label className="field">
-          <span>{texts.batchSeparator}</span>
-          <input
-            type="text"
-            value={settings.batchSeparator}
-            onChange={(event) => update("batchSeparator", event.target.value)}
-          />
-        </label>
-
-        <label className="field">
-          <span>{texts.theme}</span>
-          <select
-            value={settings.theme}
-            onChange={(event) => update("theme", event.target.value as QueueSettings["theme"])}
-          >
-            <option value="page">{texts.system}</option>
-            <option value="light">{texts.light}</option>
-            <option value="dark">{texts.dark}</option>
-          </select>
-        </label>
-
-        <label className="field">
-          <span>{texts.language}</span>
-          <select
-            value={settings.language}
-            onChange={(event) => update("language", event.target.value as QueueSettings["language"])}
-          >
-            <option value="zh">{texts.chinese}</option>
-            <option value="en">{texts.english}</option>
-          </select>
-        </label>
-      </div>
-
-      <button
-        type="button"
-        className="secondary settings-disclosure"
-        onClick={() => setAdvancedOpen((value) => !value)}
-        aria-expanded={advancedOpen}
-      >
-        {advancedOpen ? texts.hideAdvancedSettings : texts.advancedSettings}
-      </button>
-
-      {advancedOpen ? (
-        <div className="advanced-settings">
-          <div className="settings-group" aria-label={texts.settingsGroupExecution}>
-            <div className="advanced-settings-title">
-              <strong>{texts.settingsGroupExecution}</strong>
-              <span>{texts.settingsGroupExecutionHint}</span>
+        {activePage === "advanced" ? (
+          <>
+      <div className="advanced-settings">
+          <section className="settings-section settings-advanced-section" aria-labelledby="promptqueue-execution-settings">
+            <div className="settings-section-heading">
+              <span className="settings-section-index" aria-hidden="true">02</span>
+              <div>
+                <h3 id="promptqueue-execution-settings">{texts.settingsGroupExecution}</h3>
+                <p>{texts.settingsGroupExecutionHint}</p>
+              </div>
             </div>
 
-            <label className="field">
-              <span>{texts.stableDelayMs}</span>
-              <input
-                type="number"
-                min={500}
-                max={30000}
-                step={250}
-                value={settings.stableDelayMs}
-                onChange={(event) => update("stableDelayMs", Number(event.target.value))}
-              />
-              <span className="field-hint">{texts.stableDelayMsHint}</span>
-            </label>
+            <div className="settings-field-grid">
+              <label className="field">
+                <span>{texts.stableDelayMs}</span>
+                <input
+                  type="number"
+                  min={500}
+                  max={30000}
+                  step={250}
+                  value={settings.stableDelayMs}
+                  onChange={(event) => update("stableDelayMs", Number(event.target.value))}
+                />
+                <span className="field-hint">{texts.stableDelayMsHint}</span>
+              </label>
 
-            <label className="field">
-              <span>{texts.maxWaitMs}</span>
-              <input
-                type="number"
-                min={5000}
-                max={3600000}
-                step={5000}
-                value={settings.maxWaitMs}
-                onChange={(event) => update("maxWaitMs", Number(event.target.value))}
-              />
-              <span className="field-hint">{texts.maxWaitMsHint}</span>
-            </label>
+              <label className="field">
+                <span>{texts.maxWaitMs}</span>
+                <input
+                  type="number"
+                  min={5000}
+                  max={3600000}
+                  step={5000}
+                  value={settings.maxWaitMs}
+                  onChange={(event) => update("maxWaitMs", Number(event.target.value))}
+                />
+                <span className="field-hint">{texts.maxWaitMsHint}</span>
+              </label>
+            </div>
 
             <label className="setting-row">
               <span>{texts.autoRetryEnabled}</span>
@@ -261,32 +361,34 @@ export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPa
               />
             </label>
 
-            <label className="field">
-              <span>{texts.maxAutoRetries}</span>
-              <input
-                type="number"
-                min={0}
-                max={5}
-                step={1}
-                value={settings.maxAutoRetries}
-                onChange={(event) => update("maxAutoRetries", Number(event.target.value))}
-                disabled={!settings.autoRetryEnabled}
-              />
-            </label>
+            <div className="settings-field-grid settings-dependent-fields" aria-disabled={!settings.autoRetryEnabled}>
+              <label className="field">
+                <span>{texts.maxAutoRetries}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={5}
+                  step={1}
+                  value={settings.maxAutoRetries}
+                  onChange={(event) => update("maxAutoRetries", Number(event.target.value))}
+                  disabled={!settings.autoRetryEnabled}
+                />
+              </label>
 
-            <label className="field">
-              <span>{texts.retryDelayMs}</span>
-              <input
-                type="number"
-                min={500}
-                max={60000}
-                step={500}
-                value={settings.retryDelayMs}
-                onChange={(event) => update("retryDelayMs", Number(event.target.value))}
-                disabled={!settings.autoRetryEnabled}
-              />
-              <span className="field-hint">{texts.retryDelayMsHint}</span>
-            </label>
+              <label className="field">
+                <span>{texts.retryDelayMs}</span>
+                <input
+                  type="number"
+                  min={500}
+                  max={60000}
+                  step={500}
+                  value={settings.retryDelayMs}
+                  onChange={(event) => update("retryDelayMs", Number(event.target.value))}
+                  disabled={!settings.autoRetryEnabled}
+                />
+                <span className="field-hint">{texts.retryDelayMsHint}</span>
+              </label>
+            </div>
 
             <label className="setting-row">
               <span>{texts.rateLimitWarningEnabled}</span>
@@ -296,12 +398,15 @@ export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPa
                 onChange={(event) => update("rateLimitWarningEnabled", event.target.checked)}
               />
             </label>
-          </div>
+          </section>
 
-          <div className="settings-group" aria-label={texts.settingsGroupModels}>
-            <div className="advanced-settings-title">
-              <strong>{texts.settingsGroupModels}</strong>
-              <span>{texts.modelSelectionHint}</span>
+          <section className="settings-section settings-advanced-section" aria-labelledby="promptqueue-model-settings">
+            <div className="settings-section-heading">
+              <span className="settings-section-index" aria-hidden="true">03</span>
+              <div>
+                <h3 id="promptqueue-model-settings">{texts.settingsGroupModels}</h3>
+                <p>{texts.modelSelectionHint}</p>
+              </div>
             </div>
             {providerIds.map((providerId) => {
               const preference = providerModels[providerId];
@@ -339,11 +444,14 @@ export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPa
                 </div>
               );
             })}
-          </div>
+          </section>
 
-          <div className="settings-group" aria-label={texts.settingsGroupData}>
-            <div className="advanced-settings-title">
-              <strong>{texts.settingsGroupData}</strong>
+          <section className="settings-section settings-advanced-section" aria-labelledby="promptqueue-data-settings">
+            <div className="settings-section-heading">
+              <span className="settings-section-index" aria-hidden="true">04</span>
+              <div>
+                <h3 id="promptqueue-data-settings">{texts.settingsGroupData}</h3>
+              </div>
             </div>
 
             <label className="setting-row">
@@ -387,45 +495,46 @@ export function SettingsPanel({ settings, texts, onChange, onClose }: SettingsPa
                 <div className={`sync-status sync-status-${syncStatus}`}>{syncMessage}</div>
               ) : null}
             </div>
-          </div>
-        </div>
-      ) : null}
+          </section>
+      </div>
 
-      <button
-        type="button"
-        className="secondary"
-        onClick={() => update("panelWidth", 380)}
-      >
-        {texts.resetWidth}
-      </button>
+          </>
+        ) : null}
 
-      <div className="settings-support-footer" aria-label={texts.navSupport}>
-        <div className="donate-card expanded">
+        {activePage === "support" ? (
+          <>
+      <section className="settings-support" aria-label={texts.navSupport}>
+        <span className="settings-section-index" aria-hidden="true">05</span>
+        <div className="settings-support-copy">
           <div className="donate-copy">
             <strong>{texts.supportTitle}</strong>
             <span>{texts.supportBody}</span>
           </div>
-          <a
-            className="github-star-link"
-            href={GITHUB_REPO_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {texts.githubStar}
-          </a>
-          <a
-            className="github-star-link kofi-link"
-            href={KOFI_URL}
-            target="_blank"
-            rel="noreferrer"
-          >
-            {texts.koFiSupport}
-          </a>
-          {donateImageUrl ? (
-            <img src={donateImageUrl} alt={texts.wechatPayAlt} loading="lazy" />
-          ) : null}
+          <div className="settings-support-actions">
+            <a
+              className="github-star-link"
+              href={GITHUB_REPO_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {texts.githubStar}
+            </a>
+            <a
+              className="github-star-link kofi-link"
+              href={KOFI_URL}
+              target="_blank"
+              rel="noreferrer"
+            >
+              {texts.koFiSupport}
+            </a>
+          </div>
         </div>
+        {donateImageUrl ? <img src={donateImageUrl} alt={texts.wechatPayAlt} loading="lazy" /> : null}
+      </section>
+          </>
+        ) : null}
       </div>
+
     </section>
   );
 }

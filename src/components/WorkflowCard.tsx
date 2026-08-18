@@ -321,8 +321,9 @@ export function WorkflowCard({
                     <button
                       type="button"
                       className="drag-handle icon-button"
-                      title={`${texts.dragToReorder} (↑ / ↓)`}
+                      title={texts.dragToReorder}
                       aria-label={texts.dragToReorder}
+                      aria-keyshortcuts="ArrowUp ArrowDown"
                       onKeyDown={(event) => {
                         if (event.key === "ArrowUp" && index > 0) {
                           event.preventDefault();

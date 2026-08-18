@@ -200,7 +200,7 @@ export function NativeQueueDock({
                   type="button"
                   title={texts.dragToReorder}
                   disabled={!canReorder}
-                  aria-label={texts.dragTask}
+                  aria-label={texts.dragToReorder}
                 >
                   <GripIcon />
                 </button>
